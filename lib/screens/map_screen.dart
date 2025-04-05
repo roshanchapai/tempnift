@@ -37,6 +37,9 @@ class _MapScreenState extends State<MapScreen> {
   bool _isDraggingPickup = false;
   bool _isDraggingDestination = false;
   List<_PopularPlace> _popularPlaces = [];
+  StreamSubscription<Position>? _locationSubscription;
+  String _currentAddress = '';
+  Timer? _addressUpdateTimer;
 
   // Default location (Kathmandu Valley, Nepal)
   static const CameraPosition _defaultLocation = CameraPosition(
@@ -47,9 +50,9 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    // Request location permission immediately when the app starts
     _requestLocationPermission();
     _loadPopularPlaces();
+    _startLocationUpdates();
   }
 
   void _loadPopularPlaces() {
@@ -85,6 +88,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _locationSubscription?.cancel();
+    _addressUpdateTimer?.cancel();
     _pickupController.dispose();
     _destinationController.dispose();
     super.dispose();
@@ -1483,7 +1488,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
           
-          // Use Current Location Button
+          // Use Current Location Button with address tooltip
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
             right: 16,
@@ -1493,10 +1498,23 @@ class _MapScreenState extends State<MapScreen> {
                 borderRadius: BorderRadius.circular(AppColors.borderRadius),
                 boxShadow: AppColors.cardShadow,
               ),
-              child: IconButton(
-                icon: const Icon(Icons.my_location),
-                onPressed: () => _useCurrentLocationAsPickup(),
-                tooltip: 'Use current location as pickup',
+              child: Tooltip(
+                message: _currentAddress.isNotEmpty 
+                    ? 'Current Location:\n$_currentAddress' 
+                    : 'Getting current location...',
+                preferBelow: false,
+                showDuration: const Duration(seconds: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(8),
+                textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                child: IconButton(
+                  icon: const Icon(Icons.my_location),
+                  onPressed: () => _useCurrentLocationAsPickup(),
+                  tooltip: 'Use current location as pickup',
+                ),
               ),
             ),
           ),
@@ -1853,6 +1871,65 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
     }
+  }
+
+  // Add this new method to start location updates
+  void _startLocationUpdates() async {
+    // Request location permission if not already granted
+    var permission = await Permission.location.status;
+    if (!permission.isGranted) {
+      permission = await Permission.location.request();
+      if (!permission.isGranted) return;
+    }
+
+    // Start listening to location changes
+    _locationSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // Update every 10 meters
+      ),
+    ).listen((Position position) async {
+      if (!mounted) return;
+
+      final newLocation = LatLng(position.latitude, position.longitude);
+      _currentLocation = newLocation;
+
+      // Update current address
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty && mounted) {
+          final place = placemarks.first;
+          setState(() {
+            _currentAddress = '${place.street}, ${place.locality}, ${place.country}';
+          });
+        }
+      } catch (e) {
+        debugPrint('Error getting address: $e');
+      }
+    });
+
+    // Set up periodic address updates (every 30 seconds)
+    _addressUpdateTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      if (_currentLocation != null) {
+        try {
+          final placemarks = await placemarkFromCoordinates(
+            _currentLocation!.latitude,
+            _currentLocation!.longitude,
+          );
+          if (placemarks.isNotEmpty && mounted) {
+            final place = placemarks.first;
+            setState(() {
+              _currentAddress = '${place.street}, ${place.locality}, ${place.country}';
+            });
+          }
+        } catch (e) {
+          debugPrint('Error updating address: $e');
+        }
+      }
+    });
   }
 }
 
