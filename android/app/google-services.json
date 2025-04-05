@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "76004256312",
+    "project_id": "niftapp-43939",
+    "storage_bucket": "niftapp-43939.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76004256312:android:957ddb2f0a8a512e2294cd",
+        "android_client_info": {
+          "package_name": "com.roshanchapai.nift_final"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8hBIGnJZLbAukYmFboLjvOHIK3C11Lvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
