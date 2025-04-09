@@ -252,7 +252,7 @@ class MapScreenWithDrawer extends StatelessWidget {
     return Stack(
       children: [
         // Original Map Screen
-        const MapScreen(),
+        MapScreen(user: user),
         
         // Custom Hamburger Menu Button
         Positioned(

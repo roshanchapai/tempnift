@@ -15,7 +15,7 @@ class BookingPanel extends StatelessWidget {
   final Function(SearchResult, bool) onLocationSelected;
   final Function() onGetCurrentLocation;
   final Function() onShowPopularPlaces;
-  final Function() onBookNow;
+  final VoidCallback onBookNow;
 
   const BookingPanel({
     Key? key,

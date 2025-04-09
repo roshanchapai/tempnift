@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nift_final/models/drawer_state.dart';
 import 'package:nift_final/models/user_model.dart';
+import 'package:nift_final/models/ride_request_model.dart';
+import 'package:nift_final/services/ride_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/widgets/app_drawer.dart';
 
@@ -19,91 +22,76 @@ class RiderHomeScreen extends StatefulWidget {
   State<RiderHomeScreen> createState() => _RiderHomeScreenState();
 }
 
-class _RiderHomeScreenState extends State<RiderHomeScreen> {
+class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
-  final List<Map<String, dynamic>> _rideRequests = [];
+  List<RideRequest> _rideRequests = [];
+  final RideService _rideService = RideService();
+  Stream<List<RideRequest>>? _requestsStream;
+  StreamSubscription<List<RideRequest>>? _streamSubscription;
+  late TabController _tabController;
   
   @override
   void initState() {
     super.initState();
-    _fetchRideRequests();
+    _tabController = TabController(length: 3, vsync: this);
+    _initRequestsStream();
   }
   
-  // Fetch ride requests that don't have a rider yet
-  Future<void> _fetchRideRequests() async {
-    setState(() {
-      _isLoading = true;
-    });
+  @override
+  void dispose() {
+    // Cancel any active stream subscriptions
+    _streamSubscription?.cancel();
+    _tabController.dispose();
+    super.dispose();
+  }
+  
+  void _initRequestsStream() {
+    // Cancel any existing subscription before creating a new one
+    _streamSubscription?.cancel();
     
-    try {
-      // In a real implementation, we would fetch from Firestore
-      // For now, adding mock data for demonstration
-      await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-      
-      setState(() {
-        _rideRequests.addAll([
-          {
-            'id': '1',
-            'passengerId': 'user123',
-            'passengerName': 'John Doe',
-            'from': 'Kathmandu Durbar Square',
-            'to': 'Thamel',
-            'offeredPrice': 250,
-            'timestamp': DateTime.now().subtract(const Duration(minutes: 5)),
-            'status': 'pending',
-          },
-          {
-            'id': '2',
-            'passengerId': 'user456',
-            'passengerName': 'Jane Smith',
-            'from': 'Bouddhanath Stupa',
-            'to': 'Pashupatinath Temple',
-            'offeredPrice': 350,
-            'timestamp': DateTime.now().subtract(const Duration(minutes: 15)),
-            'status': 'pending',
-          },
-          {
-            'id': '3',
-            'passengerId': 'user789',
-            'passengerName': 'Mike Johnson',
-            'from': 'Tribhuvan Airport',
-            'to': 'Hotel Yak & Yeti',
-            'offeredPrice': 500,
-            'timestamp': DateTime.now().subtract(const Duration(minutes: 30)),
-            'status': 'pending',
-          },
-        ]);
-        _isLoading = false;
-      });
-    } catch (e) {
+    // Get the stream of available ride requests
+    _requestsStream = _rideService.getAvailableRideRequests();
+    
+    // Listen to the stream and update state only if widget is still mounted
+    _streamSubscription = _requestsStream?.listen((requests) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading ride requests: $e')),
-        );
         setState(() {
+          _rideRequests = requests;
           _isLoading = false;
         });
       }
-    }
+    }, onError: (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading ride requests: $error'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    });
   }
   
   // Accept a ride request
   Future<void> _acceptRideRequest(String requestId) async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
     
     try {
-      // In a real implementation, we would update Firestore
-      await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
+      await _rideService.acceptRideRequest(
+        requestId: requestId,
+        riderId: widget.user.uid,
+      );
+      
+      if (!mounted) return;
       
       setState(() {
-        // Update the local state to reflect acceptance
-        final index = _rideRequests.indexWhere((req) => req['id'] == requestId);
-        if (index != -1) {
-          _rideRequests[index]['status'] = 'accepted';
-          _rideRequests[index]['acceptedBy'] = widget.user.uid;
-        }
         _isLoading = false;
       });
       
@@ -226,17 +214,43 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
               labelColor: AppColors.primaryColor,
               unselectedLabelColor: AppColors.secondaryTextColor,
               indicatorColor: AppColors.primaryColor,
-              controller: TabController(length: 3, vsync: AnimatedListState()),
+              controller: _tabController,
             ),
           ),
           
           // Main content - Ride requests list
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _rideRequests.isEmpty
-                    ? _buildEmptyState()
-                    : _buildRideRequestsList(),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Available requests tab
+                _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildRideRequestsList(),
+                
+                // My active rides tab (placeholder for now)
+                Center(
+                  child: Text(
+                    'Active Rides Coming Soon',
+                    style: TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                
+                // Offer ride tab (placeholder for now)
+                Center(
+                  child: Text(
+                    'Offer Ride Coming Soon',
+                    style: TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           
           // Action buttons at bottom
@@ -258,7 +272,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh Requests'),
-                    onPressed: _fetchRideRequests,
+                    onPressed: _initRequestsStream,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryColor,
                       foregroundColor: Colors.white,
@@ -323,7 +337,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _fetchRideRequests,
+            onPressed: _initRequestsStream,
             child: const Text('Refresh'),
           ),
         ],
@@ -333,207 +347,259 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
   
   // Build ride requests list
   Widget _buildRideRequestsList() {
-    return ListView.builder(
-      itemCount: _rideRequests.length,
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) {
-        final request = _rideRequests[index];
-        final bool isAccepted = request['status'] == 'accepted';
-        final timestamp = request['timestamp'] as DateTime;
-        final minutesAgo = DateTime.now().difference(timestamp).inMinutes;
+    return StreamBuilder<List<RideRequest>>(
+      stream: _requestsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting && _rideRequests.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
         
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+        if (snapshot.hasError && _rideRequests.isEmpty) {
+          return Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Request header
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: AppColors.surfaceColor,
-                      child: const Icon(Icons.person),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request['passengerName'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            '$minutesAgo minutes ago',
-                            style: const TextStyle(
-                              color: AppColors.secondaryTextColor,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isAccepted
-                            ? AppColors.successColor
-                            : AppColors.primaryColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isAccepted ? 'Accepted' : 'Np. ${request['offeredPrice']}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                Icon(
+                  Icons.error_outline,
+                  size: 60,
+                  color: AppColors.errorColor,
                 ),
                 const SizedBox(height: 16),
-                
-                // From location
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.location_on,
-                        color: AppColors.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'From',
-                            style: TextStyle(
-                              color: AppColors.secondaryTextColor,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            request['from'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                
-                // Dotted line
-                Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: SizedBox(
-                    height: 30,
-                    child: VerticalDivider(
-                      color: AppColors.secondaryTextColor.withOpacity(0.3),
-                      thickness: 1,
-                      width: 1,
-                    ),
+                Text(
+                  'Error: ${snapshot.error}',
+                  style: const TextStyle(
+                    color: AppColors.errorColor,
+                    fontSize: 16,
                   ),
                 ),
-                
-                // To location
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.flag,
-                        color: AppColors.accentColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'To',
-                            style: TextStyle(
-                              color: AppColors.secondaryTextColor,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            request['to'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                
                 const SizedBox(height: 16),
-                
-                // Button row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: const Icon(Icons.map),
-                      label: const Text('View on Map'),
-                      onPressed: () {
-                        // TODO: Show on map
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Map view coming soon')),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    if (!isAccepted)
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.check),
-                        label: const Text('Accept'),
-                        onPressed: () => _acceptRideRequest(request['id']),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.successColor,
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.phone),
-                        label: const Text('Contact'),
-                        onPressed: () {
-                          // TODO: Implement contact functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Contact feature coming soon'),
-                            ),
-                          );
-                        },
-                      ),
-                  ],
+                ElevatedButton(
+                  onPressed: _initRequestsStream,
+                  child: const Text('Retry'),
                 ),
               ],
             ),
-          ),
+          );
+        }
+        
+        // Use the cached _rideRequests list that is updated by our stream subscription
+        // This avoids widget rebuild issues when the widget might be unmounting
+        if (_rideRequests.isEmpty) {
+          return _buildEmptyState();
+        }
+        
+        return ListView.builder(
+          itemCount: _rideRequests.length,
+          padding: const EdgeInsets.all(16),
+          itemBuilder: (context, index) {
+            if (index >= _rideRequests.length) return const SizedBox(); // Safety check
+            
+            final request = _rideRequests[index];
+            final bool isAccepted = request.status == 'accepted' && request.acceptedBy == widget.user.uid;
+            final minutesAgo = DateTime.now().difference(request.timestamp).inMinutes;
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Request header
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppColors.surfaceColor,
+                          child: const Icon(Icons.person),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.passengerName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                '$minutesAgo minutes ago',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryTextColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isAccepted
+                                ? AppColors.successColor
+                                : AppColors.primaryColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            isAccepted ? 'Accepted' : 'Np. ${request.offeredPrice.toInt()}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // From location
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'From',
+                                style: TextStyle(
+                                  color: AppColors.secondaryTextColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                request.fromAddress,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // Dotted line
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: SizedBox(
+                        height: 30,
+                        child: VerticalDivider(
+                          color: AppColors.secondaryTextColor.withOpacity(0.3),
+                          thickness: 1,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    
+                    // To location
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.flag,
+                            color: AppColors.accentColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'To',
+                                style: TextStyle(
+                                  color: AppColors.secondaryTextColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                request.toAddress,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Button row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.map),
+                          label: const Text('View on Map'),
+                          onPressed: () {
+                            // TODO: Show on map
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Map view coming soon')),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        if (!isAccepted && request.status == 'pending')
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.check),
+                            label: const Text('Accept'),
+                            onPressed: () {
+                              if (mounted) {
+                                _acceptRideRequest(request.id);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.successColor,
+                            ),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.phone),
+                            label: const Text('Contact'),
+                            onPressed: () {
+                              // TODO: Implement contact functionality
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Contact feature coming soon'),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
