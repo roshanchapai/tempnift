@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:nift_final/models/drawer_state.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/map_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
+import 'package:nift_final/services/drawer_service.dart';
 import 'package:nift_final/utils/constants.dart';
+import 'package:nift_final/widgets/app_drawer.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserModel user;
@@ -18,11 +21,20 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
   late UserModel _currentUser;
   bool _isLoading = false;
+  late DrawerState _drawerState;
+  late DrawerService _drawerService;
 
   @override
   void initState() {
     super.initState();
     _currentUser = widget.user;
+    _drawerState = DrawerState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _drawerService = DrawerService(context);
   }
 
   // Sign out
@@ -82,8 +94,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: MapScreen(),
+    return Scaffold(
+      key: _drawerState.scaffoldKey,
+      drawer: AppDrawer(
+        currentUser: _currentUser,
+        onProfileTap: () => _drawerService.handleProfileTap(_currentUser),
+        onSettingsTap: () => _drawerService.handleSettingsTap(),
+        onHistoryTap: () => _drawerService.handleHistoryTap(),
+        onHelpTap: () => _drawerService.handleHelpTap(),
+        onAboutTap: () => _drawerService.handleAboutTap(),
+        onLogoutTap: () => _drawerService.handleLogoutTap(),
+        onSwitchRoleTap: () => _drawerService.handleSwitchRoleTap(_currentUser),
+      ),
+      onDrawerChanged: _drawerState.handleDrawerCallback,
+      body: MapScreenWithDrawer(
+        drawerState: _drawerState,
+        user: _currentUser,
+      ),
     );
   }
 
@@ -190,6 +217,53 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A wrapper around MapScreen that adds drawer functionality
+class MapScreenWithDrawer extends StatelessWidget {
+  final DrawerState drawerState;
+  final UserModel user;
+  
+  const MapScreenWithDrawer({
+    Key? key,
+    required this.drawerState,
+    required this.user,
+  }) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Original Map Screen
+        const MapScreen(),
+        
+        // Custom Hamburger Menu Button
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 10,
+          left: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                drawerState.openDrawer();
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

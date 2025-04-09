@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -45,6 +46,9 @@ class _MapScreenState extends State<MapScreen> {
   String _currentAddress = '';
   Timer? _addressUpdateTimer;
   LatLng? _savedCurrentLocation;
+  
+  // Generate a unique session token for place search requests
+  final String _sessionToken = Random().nextInt(1000000).toString();
 
   // Default location (Kathmandu Valley, Nepal)
   static const CameraPosition _defaultLocation = CameraPosition(
@@ -198,7 +202,12 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     try {
-      final predictions = await PlacesService.searchPlaces(query);
+      // Pass the session token to the searchPlaces method
+      final predictions = await PlacesService.searchPlaces(
+        query,
+        sessionToken: _sessionToken,
+      );
+      
       List<SearchResult> results = [];
 
       for (var prediction in predictions) {
@@ -482,59 +491,30 @@ class _MapScreenState extends State<MapScreen> {
             ),
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
-            left: 16,
             right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
-                  child: IconButton(
-                    icon: const Icon(Icons.menu),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Menu functionality coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.directions_car),
-                    label: const Text('Active Rides'),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Active rides functionality coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                ],
+              ),
+              child: TextButton.icon(
+                icon: const Icon(Icons.directions_car),
+                label: const Text('Active Rides'),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Active rides functionality coming soon!'),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           Positioned(
