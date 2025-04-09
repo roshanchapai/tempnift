@@ -82,6 +82,32 @@ Nift is a versatile ride-hailing application built with Flutter and Firebase, de
    flutter run
    ```
 
+## Authentication Limitations
+
+> **IMPORTANT**: Phone Authentication in Development Mode
+
+Currently, the app is configured in Firebase development/test mode for phone authentication. This means:
+
+- **Only test phone numbers will work** for authentication
+- Real phone numbers will receive a `Billing_not_enabled` error
+- To use real phone numbers, Firebase Billing must be enabled on the project
+
+### Test Phone Numbers to Use
+
+For development and testing, use these test phone numbers:
+- `+977 9842229831` - Use verification code: `123456`
+- `+977 9805752350` - Use verification code: `205811`
+
+### Enabling Real Phone Authentication
+
+To enable authentication with real phone numbers:
+1. Go to the Firebase Console
+2. Upgrade to the Blaze (pay-as-you-go) plan
+3. Add a payment method
+4. Set budget alerts to avoid unexpected charges
+
+This limitation only affects development and does not impact the app's functionality when properly configured for production.
+
 ## Project Structure
 
 ### Authentication Flow

@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    // Check if user is accessing their own data
+    function isUser(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Check if the user is an admin
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Users collection rules
+    match /users/{userId} {
+      // Allow read for own user document or admin
+      allow read: if isAuth() && (isUser(userId) || isAdmin());
+      
+      // Allow create if authenticated and creating own document
+      allow create: if isAuth() && isUser(userId);
+      
+      // Allow update own document or admin can update any user
+      allow update: if isAuth() && (isUser(userId) || isAdmin());
+      
+      // Only admin can delete
+      allow delete: if isAuth() && isAdmin();
+    }
+    
+    // Rider Applications rules
+    match /riderApplications/{appId} {
+      // Users can read their own applications, admins can read all
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Users can create applications for themselves
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own pending applications, admins can update any
+      allow update: if isAuth() && (
+        (resource.data.userId == request.auth.uid && resource.data.status == 'pending') || 
+        isAdmin()
+      );
+      
+      // Only admins can delete applications
+      allow delete: if isAuth() && isAdmin();
+    }
+    
+    // Admin collection rules
+    match /admins/{adminId} {
+      // Only admins can read admin documents
+      allow read: if isAuth() && isAdmin();
+      
+      // Only admins can modify admin documents
+      allow write: if isAuth() && isAdmin();
+    }
+    
+    // Ride requests collection rules
+    match /rideRequests/{requestId} {
+      // Any authenticated user can read ride requests
+      allow read: if isAuth();
+      
+      // Users can create their own ride requests
+      allow create: if isAuth() && request.resource.data.passengerId == request.auth.uid;
+      
+      // Users can update their own requests or requests they've accepted
+      allow update: if isAuth() && (
+        resource.data.passengerId == request.auth.uid || 
+        resource.data.acceptedBy == request.auth.uid ||
+        request.resource.data.acceptedBy == request.auth.uid
+      );
+      
+      // Users can delete only their own ride requests
+      allow delete: if isAuth() && resource.data.passengerId == request.auth.uid;
+    }
+    
+    // Ride offers collection rules
+    match /rideOffers/{offerId} {
+      // Any authenticated user can read ride offers
+      allow read: if isAuth();
+      
+      // Users can create their own ride offers
+      allow create: if isAuth() && request.resource.data.riderId == request.auth.uid;
+      
+      // Users can update their own offers or offers they've accepted
+      allow update: if isAuth() && (
+        resource.data.riderId == request.auth.uid || 
+        resource.data.acceptedBy == request.auth.uid ||
+        request.resource.data.acceptedBy == request.auth.uid
+      );
+      
+      // Users can delete only their own ride offers
+      allow delete: if isAuth() && resource.data.riderId == request.auth.uid;
+    }
+  }
+} 

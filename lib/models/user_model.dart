@@ -7,6 +7,7 @@ class UserModel {
   final String? name;
   final DateTime? dateOfBirth;
   final UserRole userRole;
+  final String riderStatus; // 'not_applied', 'pending', 'approved', 'rejected'
   final DateTime createdAt;
 
   UserModel({
@@ -15,6 +16,7 @@ class UserModel {
     this.name,
     this.dateOfBirth,
     required this.userRole,
+    this.riderStatus = 'not_applied',
     required this.createdAt,
   });
 
@@ -26,8 +28,30 @@ class UserModel {
       'name': name,
       'dateOfBirth': dateOfBirth != null ? Timestamp.fromDate(dateOfBirth!) : null,
       'userRole': userRole.toString().split('.').last, // Convert enum to string
+      'riderStatus': riderStatus,
       'createdAt': Timestamp.fromDate(createdAt),
     };
+  }
+
+  // Create a copy of this UserModel with optional new values
+  UserModel copyWith({
+    String? uid,
+    String? phoneNumber,
+    String? name,
+    DateTime? dateOfBirth,
+    UserRole? userRole,
+    String? riderStatus,
+    DateTime? createdAt,
+  }) {
+    return UserModel(
+      uid: uid ?? this.uid,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      name: name ?? this.name,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      userRole: userRole ?? this.userRole,
+      riderStatus: riderStatus ?? this.riderStatus,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 
   // Create UserModel from Firestore document
@@ -41,6 +65,7 @@ class UserModel {
             ? (map['dateOfBirth'] as Timestamp).toDate() 
             : null,
         userRole: _parseUserRole(map['userRole'] as String?),
+        riderStatus: map['riderStatus'] as String? ?? 'not_applied',
         createdAt: map['createdAt'] != null 
             ? (map['createdAt'] as Timestamp).toDate()
             : DateTime.now(),
@@ -60,21 +85,5 @@ class UserModel {
       default:
         return UserRole.passenger; // Default role
     }
-  }
-
-  // Create a copy of UserModel with updated fields
-  UserModel copyWith({
-    String? name,
-    DateTime? dateOfBirth,
-    UserRole? userRole,
-  }) {
-    return UserModel(
-      uid: this.uid,
-      phoneNumber: this.phoneNumber,
-      name: name ?? this.name,
-      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
-      userRole: userRole ?? this.userRole,
-      createdAt: this.createdAt,
-    );
   }
 }

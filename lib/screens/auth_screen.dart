@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:nift_final/screens/admin/admin_dashboard_screen.dart';
 import 'package:nift_final/screens/home_screen.dart';
 import 'package:nift_final/screens/user_details_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
@@ -126,14 +128,14 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
   
-  // Verify OTP
+  // Verify OTP and navigate to appropriate screen
   Future<void> _verifyOTP() async {
-    final otp = _otpControllers.map((c) => c.text).join();
-    if (otp.length != 6) {
+    // Combine OTP digits
+    final String otpCode = _otpControllers.map((c) => c.text).join();
+    if (otpCode.length != 6) {
       setState(() {
-        _errorMessage = 'Please enter the complete 6-digit OTP';
+        _errorMessage = 'Please enter all 6 digits';
       });
-      _otpFocusNodes[0].requestFocus();
       return;
     }
     
@@ -143,14 +145,39 @@ class _AuthScreenState extends State<AuthScreen> {
     });
     
     try {
-      debugPrint('Starting OTP verification with ID: $_verificationId');
-      final credential = await _authService.verifyOTP(_verificationId, otp);
-      debugPrint('OTP verification successful, user ID: ${credential.user?.uid}');
-      final uid = credential.user!.uid;
+      debugPrint('Verifying OTP...');
+      // Verify OTP with Firebase
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId,
+        smsCode: otpCode,
+      );
       
-      // Check if user exists
-      debugPrint('Checking if user exists: $uid');
-      final userExists = await _authService.checkUserExists(uid);
+      final userCredential = await _authService.signInWithCredential(credential);
+      final uid = userCredential.user?.uid;
+      
+      if (uid == null) {
+        throw Exception('Failed to sign in with credential');
+      }
+      
+      // Check if this is an admin phone number
+      final bool isAdmin = await _authService.isAdmin(_phoneController.text);
+      
+      if (isAdmin) {
+        debugPrint('Admin user detected, navigating to admin dashboard');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const AdminDashboardScreen()
+            ),
+          );
+        }
+        return;
+      }
+      
+      debugPrint('Authentication successful, checking if user exists...');
+      
+      // Check if user exists in database
+      final userExists = await _authService.userExists(uid);
       debugPrint('User exists: $userExists');
       
       if (userExists) {

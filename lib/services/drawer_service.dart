@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/auth_screen.dart';
+import 'package:nift_final/screens/role_switch_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart'; // Import constants which contains UserRole
 
@@ -88,21 +89,17 @@ class DrawerService {
     }
     
     try {
-      final newRole = user.userRole == UserRole.passenger 
-          ? UserRole.rider 
-          : UserRole.passenger;
-      
-      await _authService.updateUserRole(
-        uid: user.uid,
-        newRole: newRole,
+      // Navigate to role switch screen
+      final updatedUser = await Navigator.of(context).push<UserModel>(
+        MaterialPageRoute(
+          builder: (context) => RoleSwitchScreen(user: user),
+        ),
       );
       
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Role switched to ${newRole.toString().split('.').last}'),
-          ),
-        );
+      // If we received an updated user model back, we can use it
+      // otherwise, do nothing as the user likely cancelled
+      if (updatedUser != null && context.mounted) {
+        // If necessary, you could notify other parts of the app of the role change here
       }
     } catch (e) {
       if (context.mounted) {

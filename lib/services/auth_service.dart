@@ -15,6 +15,9 @@ class AuthService {
   // Check if user is logged in
   bool get isLoggedIn => _auth.currentUser != null;
 
+  // Get the current user
+  User? get currentUser => _auth.currentUser;
+
   // Send OTP to phone number
   Future<void> sendOTP({
     required String phoneNumber,
@@ -152,6 +155,20 @@ class AuthService {
     );
   }
 
+  // Update user rider status
+  Future<void> updateUserRiderStatus({
+    required String uid,
+    required String newStatus,
+  }) async {
+    return RetryHelper.retry(
+      operation: () async {
+        await _firestore.collection('users').doc(uid).update({
+          'riderStatus': newStatus,
+        });
+      },
+    );
+  }
+
   // Get user data
   Future<UserModel?> getUserData(String uid) async {
     return RetryHelper.retry(
@@ -168,5 +185,38 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  // Check if user is admin
+  Future<bool> isAdmin(String phoneNumber) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('admins')
+          .where('phoneNumber', isEqualTo: phoneNumber)
+          .limit(1)
+          .get();
+      
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking admin status: $e');
+      return false;
+    }
+  }
+
+  // Sign in with credential
+  Future<UserCredential> signInWithCredential(
+    PhoneAuthCredential credential,
+  ) async {
+    return await _auth.signInWithCredential(credential);
+  }
+
+  // Check if user exists
+  Future<bool> userExists(String uid) async {
+    return RetryHelper.retry(
+      operation: () async {
+        final doc = await _firestore.collection('users').doc(uid).get();
+        return doc.exists;
+      },
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:nift_final/screens/admin/admin_dashboard_screen.dart';
 import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/home_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
@@ -60,13 +61,31 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         
         if (!mounted) return;
         
-        if (userData != null && userData.name != null) {
-          // User has completed profile
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => HomeScreen(user: userData)),
-          );
+        if (userData != null) {
+          // Check if user is admin
+          final isAdmin = await _authService.isAdmin(userData.phoneNumber);
+          
+          if (isAdmin) {
+            // Navigate to admin dashboard
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+            );
+            return;
+          }
+          
+          if (userData.name != null) {
+            // User has completed profile
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => HomeScreen(user: userData)),
+            );
+          } else {
+            // User needs to complete profile
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const AuthScreen()),
+            );
+          }
         } else {
-          // User needs to complete profile
+          // User data not found, redirect to auth
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const AuthScreen()),
           );

@@ -116,18 +116,18 @@ class _MapScreenState extends State<MapScreen> {
       final location = await LocationService.getCurrentLocation();
       if (location != null) {
         _savedCurrentLocation = location;
-        setState(() {
+          setState(() {
           _currentLocation = location;
           _pickupLocation = location;
-          _markers = {
-            Marker(
-              markerId: const MarkerId('current_location'),
+        _markers = {
+          Marker(
+            markerId: const MarkerId('current_location'),
               position: location,
-              infoWindow: const InfoWindow(title: 'Current Location'),
-            ),
-          };
-          _isLoading = false;
-        });
+            infoWindow: const InfoWindow(title: 'Current Location'),
+          ),
+        };
+        _isLoading = false;
+      });
 
         final address = await LocationService.getAddressFromLatLng(location);
         if (address != null && mounted) {
@@ -137,7 +137,7 @@ class _MapScreenState extends State<MapScreen> {
           });
         }
 
-        if (_mapController != null) {
+      if (_mapController != null) {
           await _mapController!.animateCamera(
             CameraUpdate.newCameraPosition(
               CameraPosition(
@@ -157,32 +157,32 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _useDefaultLocation() {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _currentLocation = _defaultLocation.target;
-      _pickupLocation = _currentLocation;
-      _savedCurrentLocation = _currentLocation;
-      _markers = {
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: _currentLocation!,
-          infoWindow: const InfoWindow(title: 'Kathmandu Valley'),
-        ),
-      };
-    });
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _currentLocation = _defaultLocation.target;
+        _pickupLocation = _currentLocation;
+        _savedCurrentLocation = _currentLocation;
+        _markers = {
+          Marker(
+            markerId: const MarkerId('current_location'),
+            position: _currentLocation!,
+            infoWindow: const InfoWindow(title: 'Kathmandu Valley'),
+          ),
+        };
+      });
 
-    if (_mapController != null) {
+      if (_mapController != null) {
       _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(_defaultLocation),
-      );
-    }
+            CameraUpdate.newCameraPosition(_defaultLocation),
+          );
+        }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Using default location: Kathmandu Valley'),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Using default location: Kathmandu Valley'),
+        ),
+      );
   }
 
   Future<void> _searchLocation(String query, bool isPickup) async {
@@ -212,29 +212,29 @@ class _MapScreenState extends State<MapScreen> {
 
       for (var prediction in predictions) {
         final details = await PlacesService.getPlaceDetails(prediction.placeId);
-        if (details != null) {
+          if (details != null) {
           results.add(SearchResult(
-            place: Placemark(
-              name: '',
-              street: '',
-              locality: '',
-              subLocality: '',
-              administrativeArea: '',
-              country: '',
-            ),
-            location: details.latLng,
-            formattedAddress: details.formattedAddress,
-            distance: _currentLocation != null
+              place: Placemark(
+                name: '',
+                street: '',
+                locality: '',
+                subLocality: '',
+                administrativeArea: '',
+                country: '',
+              ),
+              location: details.latLng,
+              formattedAddress: details.formattedAddress,
+              distance: _currentLocation != null
                 ? _calculateDistance(
                     _currentLocation!.latitude,
                     _currentLocation!.longitude,
                     details.latLng.latitude,
                     details.latLng.longitude,
                   )
-                : 0.0,
-          ));
+                  : 0.0,
+            ));
+          }
         }
-      }
 
       results.sort((a, b) => a.distance.compareTo(b.distance));
       setState(() {
@@ -370,14 +370,14 @@ class _MapScreenState extends State<MapScreen> {
 
     final address = await LocationService.getAddressFromLatLng(newPosition);
     if (address != null && mounted) {
-      setState(() {
-        if (isPickup) {
+        setState(() {
+          if (isPickup) {
           _pickupController.text = address;
-        } else {
+          } else {
           _destinationController.text = address;
-        }
-      });
-    }
+          }
+        });
+      }
 
     if (_pickupLocation != null && _destinationLocation != null) {
       _drawRoute();
@@ -437,18 +437,18 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
     if (_destinationLocation != null) {
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('destination'),
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('destination'),
           position: _destinationLocation!,
-          infoWindow: const InfoWindow(title: 'Destination'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          draggable: true,
-          onDragEnd: (newPosition) {
-            _updateLocationFromDrag(newPosition, false);
-          },
-        ),
-      );
+            infoWindow: const InfoWindow(title: 'Destination'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            draggable: true,
+            onDragEnd: (newPosition) {
+              _updateLocationFromDrag(newPosition, false);
+            },
+          ),
+        );
     }
   }
 
@@ -472,19 +472,19 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           GoogleMap(
-            mapType: MapType.normal,
+                  mapType: MapType.normal,
             initialCameraPosition: _defaultLocation,
-            onMapCreated: (GoogleMapController controller) {
-              _controller.complete(controller);
-              _mapController = controller;
-            },
-            markers: _markers,
-            polylines: _polylines,
+                  onMapCreated: (GoogleMapController controller) {
+                      _controller.complete(controller);
+                      _mapController = controller;
+                  },
+                  markers: _markers,
+                  polylines: _polylines,
             myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: true,
-            onTap: _onMapTapped,
-          ),
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: true,
+                  onTap: _onMapTapped,
+                ),
           if (_isLoading)
             const Center(
               child: CircularProgressIndicator(),
@@ -495,7 +495,7 @@ class _MapScreenState extends State<MapScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -505,18 +505,18 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
               child: TextButton.icon(
-                icon: const Icon(Icons.directions_car),
+                  icon: const Icon(Icons.directions_car),
                 label: const Text('Active Rides'),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Active rides functionality coming soon!'),
                     ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
           Positioned(
             left: 16,
             right: 16,
@@ -548,13 +548,13 @@ class _MapScreenState extends State<MapScreen> {
                   
                   if (_mapController != null) {
                     _mapController!.animateCamera(
-                      CameraUpdate.newCameraPosition(
-                        CameraPosition(
+                                      CameraUpdate.newCameraPosition(
+                                        CameraPosition(
                           target: location,
-                          zoom: 16.0,
-                        ),
-                      ),
-                    );
+                                          zoom: 16.0,
+                                        ),
+                                      ),
+                                    );
                   }
                   
                   if (_destinationLocation != null) {
@@ -564,12 +564,12 @@ class _MapScreenState extends State<MapScreen> {
               },
               onShowPopularPlaces: _showPopularPlaces,
               onBookNow: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
                     content: Text('Booking functionality coming soon!'),
-                  ),
-                );
-              },
+                            ),
+                          );
+                        },
             ),
           ),
           if (_isPickupSearching || _isDestinationSearching)
@@ -595,11 +595,11 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _destinationLocation = location;
         _markers.removeWhere((m) => m.markerId.value == 'destination');
-        _markers.add(
-          Marker(
-            markerId: const MarkerId('destination'),
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
             position: location,
-            infoWindow: const InfoWindow(title: 'Destination'),
+          infoWindow: const InfoWindow(title: 'Destination'),
             icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
             draggable: true,
             onDragEnd: (newPosition) {
