@@ -1,15 +1,15 @@
 # Nift App Development To-Do List
 
 ## 1. Project Setup
-- [ ] **Initialize Flutter Project**
+- [x] **Initialize Flutter Project**
   - Run `flutter create nift` to set up a new Flutter project.
-- [ ] **Set Up Firebase**
+- [x] **Set Up Firebase**
   - Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
   - Register Android and/or iOS apps in the Firebase project.
   - Download configuration files:
     - `google-services.json` for Android (place in `android/app/`).
     - `GoogleService-Info.plist` for iOS (place in `ios/Runner/`).
-- [ ] **Add Dependencies**
+- [x] **Add Dependencies**
   - Edit `pubspec.yaml` to include:
     ```yaml
     dependencies:
@@ -25,7 +25,7 @@
       location: ^latest_version
     ```
   - Run `flutter pub get` to install them.
-- [ ] **Initialize Firebase**
+- [x] **Initialize Firebase**
   - Update `main.dart`:
     ```dart
     import 'package:firebase_core/firebase_core.dart';
@@ -36,7 +36,7 @@
       runApp(MyApp());
     }
     ```
-- [ ] **Configure Google Maps**
+- [x] **Configure Google Maps**
   - Get an API key from [Google Cloud Console](https://console.cloud.google.com/).
   - Add it to:
     - Android (`android/app/src/main/AndroidManifest.xml`):
@@ -56,15 +56,15 @@
 
 ### 2.1 Data Models
 - [ ] **Set Up Firestore Collections**
-  - `users`:
+  - [x] `users`:
     - Fields: `phoneNumber` (String), `fullName` (String), `dateOfBirth` (Timestamp), `riderStatus` (String: `not_applied`, `pending`, `approved`, `rejected`), `currentMode` (String: `passenger`, `rider`).
-  - `admins`:
+  - [ ] `admins`:
     - Fields: `phoneNumber` (String, e.g., "9876543210"), `hashedKey` (String).
-  - `riderApplications`:
+  - [ ] `riderApplications`:
     - Fields: `userId` (String), `selfPhotoUrl` (String), `idPhotoUrl` (String), `vehiclePhotoUrl` (String), `vehicleDetails` (Map), `status` (String: `pending`, `approved`, `rejected`).
 
 ### 2.2 Screens and Logic
-- [ ] **Splash Screen**
+- [x] **Splash Screen**
   - Show app logo for 3 seconds.
   - Check `FirebaseAuth.instance.currentUser`:
     - If logged in:
@@ -74,18 +74,18 @@
         - `currentMode: rider` → Rider Home.
       - If admin (after key check), go to Admin Dashboard.
     - If not logged in, go to Login/Signup Screen.
-- [ ] **Login/Signup Screen**
+- [x] **Login/Signup Screen**
   - UI: Phone number field, "Next" button.
   - Validate phone (e.g., `+9779812345678`).
   - If matches admin number (e.g., "9876543210"), go to Admin Key Input Screen.
   - Otherwise, start Firebase phone auth and go to OTP Screen.
-- [ ] **OTP Verification Screen**
+- [x] **OTP Verification Screen**
   - UI: 6-digit OTP field, "Verify" button.
   - Verify OTP with Firebase Auth.
   - On success:
     - If `phoneNumber` in `users`: Login → Navigate by `currentMode`.
     - If not: Signup → Go to Signup Details Screen.
-- [ ] **Signup Details Screen**
+- [x] **Signup Details Screen**
   - UI: Full name, date of birth fields, "Submit" button.
   - Validate inputs.
   - Save to `users` with `riderStatus: not_applied`, `currentMode: passenger`.
@@ -101,19 +101,19 @@
 ## 3. Home Screens
 
 ### 3.1 Passenger Home Screen
-- [ ] **Map Display**
+- [x] **Map Display**
   - Use `google_maps_flutter` for a full-screen map.
   - Center on user's location (via `location` package).
-- [ ] **Booking Panel**
+- [x] **Booking Panel**
   - Bottom UI: 
-    - Toggle: "Bike Ride" or "Car Ride".
-    - `From`: Autofilled with current location, editable.
-    - `To`: Empty, with Google Places autocomplete.
-    - `Offer Your Price`: Numeric input.
-    - "Search Ride" button (saves to `rideRequests`).
-- [ ] **Locate Me Button**
+    - [ ] Toggle: "Bike Ride" or "Car Ride".
+    - [x] `From`: Autofilled with current location, editable.
+    - [x] `To`: Empty, with Google Places autocomplete.
+    - [ ] `Offer Your Price`: Numeric input.
+    - [x] "Search Ride" button (saves to `rideRequests`).
+- [x] **Locate Me Button**
   - Right side, centers map on user location.
-- [ ] **Hamburger Menu**
+- [x] **Hamburger Menu**
   - Top left corner.
 - [ ] **Find Active Rides Button**
   - Top right, goes to Find Active Rides Screen.
@@ -193,7 +193,7 @@
 ---
 
 ## 7. Final Touches
-- [ ] **Location Permissions**
+- [x] **Location Permissions**
   - Request and manage location access.
 - [ ] **Error Handling**
   - Validate inputs and show errors/loading states.

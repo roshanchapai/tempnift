@@ -53,7 +53,8 @@ Nift is a versatile ride-hailing application built with Flutter and Firebase, de
 
 1. **Clone the repository**
    ```
-   git clone <repository-url>
+   git clone https://github.com/roshanchapai/nift_final.git
+
    cd nift_final
    ```
 
@@ -142,7 +143,6 @@ Nift is a versatile ride-hailing application built with Flutter and Firebase, de
 - Enhanced safety features
 
 ## Contributors
-- [Your Team Members' Names]
+- Roshan Chapai sole developer
 
 ## License
-[Your License Information]
