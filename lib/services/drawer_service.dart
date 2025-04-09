@@ -10,7 +10,15 @@ class DrawerService {
   final BuildContext context;
   final AuthService _authService = AuthService();
   
+  // Callback function to update the parent with the new user model after role switch
+  Function(UserModel? updatedUser)? _roleSwitchCallback;
+  
   DrawerService(this.context);
+  
+  // Set up the callback for role switching
+  void setRoleSwitchCallback(Function(UserModel? updatedUser) callback) {
+    _roleSwitchCallback = callback;
+  }
   
   /// Handle profile menu tap action
   Future<void> handleProfileTap(UserModel? user) async {
@@ -99,7 +107,18 @@ class DrawerService {
       // If we received an updated user model back, we can use it
       // otherwise, do nothing as the user likely cancelled
       if (updatedUser != null && context.mounted) {
-        // If necessary, you could notify other parts of the app of the role change here
+        // Call the callback to update the parent component
+        if (_roleSwitchCallback != null) {
+          _roleSwitchCallback!(updatedUser);
+        }
+        
+        // Show a success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Switched to ${updatedUser.userRole == UserRole.rider ? 'Rider' : 'Passenger'} mode'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {

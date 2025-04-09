@@ -53,11 +53,16 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
           });
           
           if (context.mounted) {
-            Navigator.of(context).push(
+            final updatedUser = await Navigator.of(context).push<UserModel>(
               MaterialPageRoute(
                 builder: (context) => RiderRegistrationScreen(user: _currentUser),
               ),
             );
+            
+            // If we got an updated user back from registration, return it
+            if (updatedUser != null && context.mounted) {
+              Navigator.of(context).pop(updatedUser);
+            }
           }
           return;
         }
@@ -88,8 +93,10 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
       );
 
       // Update local user model
+      final updatedUser = _currentUser.copyWith(userRole: newRole);
+      
       setState(() {
-        _currentUser = _currentUser.copyWith(userRole: newRole);
+        _currentUser = updatedUser;
         _isLoading = false;
       });
 
@@ -101,8 +108,8 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
           ),
         );
         
-        // Close the screen after successful switch
-        Navigator.of(context).pop(_currentUser);
+        // Close the screen and return the updated user model
+        Navigator.of(context).pop(updatedUser);
       }
     } catch (e) {
       setState(() {

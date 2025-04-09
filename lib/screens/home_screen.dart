@@ -3,6 +3,7 @@ import 'package:nift_final/models/drawer_state.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/map_screen.dart';
+import 'package:nift_final/screens/rider/rider_home_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/services/drawer_service.dart';
 import 'package:nift_final/utils/constants.dart';
@@ -35,6 +36,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _drawerService = DrawerService(context);
+    
+    // Set up a callback to update the user model when role changes
+    _drawerService.setRoleSwitchCallback((updatedUser) {
+      if (updatedUser != null) {
+        setState(() {
+          _currentUser = updatedUser;
+        });
+      }
+    });
   }
 
   // Sign out
@@ -107,10 +117,15 @@ class _HomeScreenState extends State<HomeScreen> {
         onSwitchRoleTap: () => _drawerService.handleSwitchRoleTap(_currentUser),
       ),
       onDrawerChanged: _drawerState.handleDrawerCallback,
-      body: MapScreenWithDrawer(
-        drawerState: _drawerState,
-        user: _currentUser,
-      ),
+      body: _currentUser.userRole == UserRole.passenger
+          ? MapScreenWithDrawer(
+              drawerState: _drawerState,
+              user: _currentUser,
+            )
+          : RiderHomeScreen(
+              user: _currentUser,
+              drawerState: _drawerState,
+            ),
     );
   }
 
@@ -250,7 +265,7 @@ class MapScreenWithDrawer extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
+                  blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -258,7 +273,7 @@ class MapScreenWithDrawer extends StatelessWidget {
             child: IconButton(
               icon: const Icon(Icons.menu),
               onPressed: () {
-                drawerState.openDrawer();
+                drawerState.scaffoldKey.currentState?.openDrawer();
               },
             ),
           ),
