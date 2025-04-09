@@ -114,6 +114,7 @@ class AppTextStyles {
 
 // Common UI Constants
 class AppConstants {
+  static const String googleApiKey = 'AIzaSyDtO2VJIuQTpdp1h_ub8cPo710FtClvGZQ';
   static const double defaultPadding = 16.0;
   static const double defaultMargin = 16.0;
   static const double defaultRadius = 8.0;

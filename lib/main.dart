@@ -14,7 +14,6 @@ void main() async {
     debugPrint('Firebase initialized successfully');
   } catch (e) {
     debugPrint('Failed to initialize Firebase: $e');
-    // You might want to show an error screen or handle this differently
   }
 
   // Run the app
