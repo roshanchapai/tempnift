@@ -164,66 +164,78 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   void _handleRiderLocationUpdate(LatLng? location) {
     if (!mounted || location == null) return;
     
+    // Define original pickup and destination locations from the ride request
+    final pickup = LatLng(
+      widget.rideRequest.fromLocation.latitude,
+      widget.rideRequest.fromLocation.longitude,
+    );
+    
+    final destination = LatLng(
+      widget.rideRequest.toLocation.latitude,
+      widget.rideRequest.toLocation.longitude,
+    );
+    
     setState(() {
       _riderLocation = location;
       
-      // Update rider marker
+      // Update markers - ensure we keep the original pickup and destination markers
       _markers = {
+        // Keep all markers except rider
         ..._markers.where((marker) => marker.markerId.value != 'rider'),
+        
+        // Add rider marker
         Marker(
           markerId: const MarkerId('rider'),
           position: location,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           infoWindow: InfoWindow(title: '${widget.rider.name} (Your Rider)'),
         ),
+        
+        // Ensure pickup marker stays at the original location
+        Marker(
+          markerId: const MarkerId('pickup'),
+          position: pickup,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: const InfoWindow(title: 'Pickup Location'),
+        ),
+        
+        // Ensure destination marker stays at the original location
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: destination,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Destination'),
+        ),
       };
       
-      // If ride is in progress, we should still show the original route 
-      // from pickup to destination, not from rider's current location
+      // Handle different ride statuses
       if (_rideStatus == 'in_progress') {
-        final pickup = LatLng(
-          widget.rideRequest.fromLocation.latitude,
-          widget.rideRequest.fromLocation.longitude,
-        );
-        
-        final destination = LatLng(
-          widget.rideRequest.toLocation.latitude,
-          widget.rideRequest.toLocation.longitude,
-        );
-        
-        // Don't change the main route, just add a simple line from rider to route
+        // For rides in progress, show the original route with a rider indicator
         _updatePolylineWithRiderLocation(pickup, destination, location);
       }
-      // If ride is accepted but not yet in progress, update polyline from rider to pickup
       else if (_rideStatus == 'accepted') {
-        final pickup = LatLng(
-          widget.rideRequest.fromLocation.latitude,
-          widget.rideRequest.fromLocation.longitude,
-        );
-        
+        // For accepted rides, show route from rider to pickup
+        // but maintain the original pickup location
         _polylines = {
+          // Show route from rider to pickup
           Polyline(
             polylineId: const PolylineId('rider_route'),
             points: [location, pickup],
             color: AppColors.accentColor,
             width: 5,
           ),
+          
+          // Show the future route from pickup to destination
           Polyline(
             polylineId: const PolylineId('destination_route'),
-            points: [
-              pickup,
-              LatLng(
-                widget.rideRequest.toLocation.latitude,
-                widget.rideRequest.toLocation.longitude,
-              ),
-            ],
+            points: [pickup, destination],
             color: AppColors.primaryColor,
             width: 5,
             patterns: [PatternItem.dash(10), PatternItem.gap(5)],
           ),
         };
         
-        // Try to get actual route polylines
+        // Get the actual route from rider to pickup
         _getRoutePolyline(location, pickup);
       }
     });

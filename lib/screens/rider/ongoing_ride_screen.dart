@@ -192,28 +192,44 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   void _updateRoutePolylines() {
     if (_currentLocation == null) return;
     
+    // Always use the original pickup and destination from the ride request
+    final pickupLocation = LatLng(
+      widget.rideRequest.fromLocation.latitude,
+      widget.rideRequest.fromLocation.longitude,
+    );
+    
+    final destinationLocation = LatLng(
+      widget.rideRequest.toLocation.latitude,
+      widget.rideRequest.toLocation.longitude,
+    );
+    
     if (_rideStatus == 'accepted') {
-      // Draw route from current location to pickup point
-      final pickupLocation = LatLng(
-        widget.rideRequest.fromLocation.latitude,
-        widget.rideRequest.fromLocation.longitude,
-      );
-      
+      // Show route from current location to the original pickup point
       _getRoutePolylines(_currentLocation!, pickupLocation);
+      
+      // Also ensure the pickup marker is visible and at the original location
+      setState(() {
+        _markers = {
+          ..._markers.where((marker) => 
+              marker.markerId.value != 'pickup' && 
+              marker.markerId.value != 'current_location'),
+          Marker(
+            markerId: const MarkerId('pickup'),
+            position: pickupLocation,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            infoWindow: const InfoWindow(title: 'Pickup Location'),
+          ),
+          Marker(
+            markerId: const MarkerId('current_location'),
+            position: _currentLocation!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+            infoWindow: InfoWindow(title: '${widget.rider.name} (You)'),
+          ),
+        };
+      });
     } else if (_rideStatus == 'in_progress') {
-      // Draw route from pickup location to destination, not from current location
-      final pickupLocation = LatLng(
-        widget.rideRequest.fromLocation.latitude,
-        widget.rideRequest.fromLocation.longitude,
-      );
-      
-      final destinationLocation = LatLng(
-        widget.rideRequest.toLocation.latitude,
-        widget.rideRequest.toLocation.longitude,
-      );
-      
-      // Create two polylines: one for the actual route from pickup to destination
-      // and another for the current location to the pickup/destination based on ride status
+      // For in_progress rides, maintain the original route from pickup to destination
+      // and add a rider location indicator
       _getRouteAndCurrentLocationPolylines(pickupLocation, destinationLocation);
     }
   }
