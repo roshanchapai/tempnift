@@ -103,10 +103,45 @@ class _RiderApplicationsScreenState extends State<RiderApplicationsScreen> {
           final applications = snapshot.data?.docs ?? [];
           
           if (applications.isEmpty) {
-            return const Center(
-              child: Text(
-                'No pending applications',
-                style: AppTextStyles.subtitleStyle,
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.assignment_late,
+                    size: 80,
+                    color: AppColors.primaryColor.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No pending applications',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.secondaryTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'All rider applications have been processed',
+                    style: TextStyle(
+                      color: AppColors.secondaryTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // Force refresh the page
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             );
           }

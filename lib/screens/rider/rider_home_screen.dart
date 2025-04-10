@@ -7,6 +7,7 @@ import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/services/ride_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/widgets/app_drawer.dart';
+import 'package:nift_final/screens/rider/ongoing_ride_screen.dart';
 
 class RiderHomeScreen extends StatefulWidget {
   final UserModel user;
@@ -25,9 +26,12 @@ class RiderHomeScreen extends StatefulWidget {
 class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   List<RideRequest> _rideRequests = [];
+  List<RideRequest> _activeRides = [];
   final RideService _rideService = RideService();
   Stream<List<RideRequest>>? _requestsStream;
-  StreamSubscription<List<RideRequest>>? _streamSubscription;
+  Stream<List<RideRequest>>? _activeRidesStream;
+  StreamSubscription<List<RideRequest>>? _requestsSubscription;
+  StreamSubscription<List<RideRequest>>? _activeRidesSubscription;
   late TabController _tabController;
   
   @override
@@ -35,25 +39,27 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _initRequestsStream();
+    _initActiveRidesStream();
   }
   
   @override
   void dispose() {
     // Cancel any active stream subscriptions
-    _streamSubscription?.cancel();
+    _requestsSubscription?.cancel();
+    _activeRidesSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
   
   void _initRequestsStream() {
     // Cancel any existing subscription before creating a new one
-    _streamSubscription?.cancel();
+    _requestsSubscription?.cancel();
     
     // Get the stream of available ride requests
     _requestsStream = _rideService.getAvailableRideRequests();
     
     // Listen to the stream and update state only if widget is still mounted
-    _streamSubscription = _requestsStream?.listen((requests) {
+    _requestsSubscription = _requestsStream?.listen((requests) {
       if (mounted) {
         setState(() {
           _rideRequests = requests;
@@ -68,6 +74,33 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading ride requests: $error'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    });
+  }
+  
+  // Initialize active rides stream for the rider
+  void _initActiveRidesStream() {
+    // Cancel any existing subscription before creating a new one
+    _activeRidesSubscription?.cancel();
+    
+    // Get the stream of active rides for this rider
+    _activeRidesStream = _rideService.getRiderActiveRides(widget.user.uid);
+    
+    // Listen to the stream and update state
+    _activeRidesSubscription = _activeRidesStream?.listen((rides) {
+      if (mounted) {
+        setState(() {
+          _activeRides = rides;
+        });
+      }
+    }, onError: (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading active rides: $error'),
             backgroundColor: AppColors.errorColor,
           ),
         );
@@ -102,6 +135,9 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
             backgroundColor: AppColors.successColor,
           ),
         );
+        
+        // Switch to active rides tab after accepting
+        _tabController.animateTo(1);
       }
     } catch (e) {
       if (mounted) {
@@ -114,6 +150,36 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  // Navigate to ongoing ride screen
+  Future<void> _navigateToOngoingRide(RideRequest rideRequest) async {
+    try {
+      // Fetch passenger details
+      final passenger = await _rideService.getUserDetails(rideRequest.passengerId);
+      
+      if (!mounted) return;
+      
+      // Navigate to ongoing ride screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => RiderOngoingRideScreen(
+            rideRequest: rideRequest,
+            rider: widget.user,
+            passenger: passenger,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading ride details: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
       }
     }
   }
@@ -228,16 +294,8 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
                   ? const Center(child: CircularProgressIndicator())
                   : _buildRideRequestsList(),
                 
-                // My active rides tab (placeholder for now)
-                Center(
-                  child: Text(
-                    'Active Rides Coming Soon',
-                    style: TextStyle(
-                      color: AppColors.secondaryTextColor,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
+                // My active rides tab
+                _buildActiveRidesList(),
                 
                 // Offer ride tab (placeholder for now)
                 Center(
@@ -354,7 +412,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
           return const Center(child: CircularProgressIndicator());
         }
         
-        if (snapshot.hasError && _rideRequests.isEmpty) {
+        if (snapshot.hasError) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -382,9 +440,8 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
           );
         }
         
-        // Use the cached _rideRequests list that is updated by our stream subscription
-        // This avoids widget rebuild issues when the widget might be unmounting
-        if (_rideRequests.isEmpty) {
+        // If we have data but it's empty or if we're using cached data and it's empty
+        if ((snapshot.hasData && snapshot.data!.isEmpty) || _rideRequests.isEmpty) {
           return _buildEmptyState();
         }
         
@@ -604,4 +661,182 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
       },
     );
   }
-} 
+  
+  // Build active rides list
+  Widget _buildActiveRidesList() {
+    if (_activeRides.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.directions_car_outlined,
+              size: 80,
+              color: AppColors.primaryColor.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No active rides',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondaryTextColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your accepted rides will appear here',
+              style: TextStyle(
+                color: AppColors.secondaryTextColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      itemCount: _activeRides.length,
+      padding: const EdgeInsets.all(16),
+      itemBuilder: (context, index) {
+        final ride = _activeRides[index];
+        final minutesAgo = DateTime.now().difference(ride.timestamp).inMinutes;
+        
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: InkWell(
+            onTap: () => _navigateToOngoingRide(ride),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Ride header
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: AppColors.surfaceColor,
+                        child: const Icon(Icons.person),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ride.passengerName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              '$minutesAgo minutes ago',
+                              style: const TextStyle(
+                                color: AppColors.secondaryTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ride.status == 'accepted' 
+                              ? AppColors.primaryColor
+                              : AppColors.accentColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          ride.status == 'accepted' ? 'Accepted' : 'In Progress',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // From/To locations
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'From',
+                              style: TextStyle(
+                                color: AppColors.secondaryTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              ride.fromAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward,
+                        color: AppColors.secondaryTextColor,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'To',
+                              style: TextStyle(
+                                color: AppColors.secondaryTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              ride.toAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Action button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.navigate_next),
+                      label: const Text('Continue Ride'),
+                      onPressed: () => _navigateToOngoingRide(ride),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

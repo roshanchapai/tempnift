@@ -206,4 +206,30 @@ class RideService {
       throw Exception('Failed to update ride status: $e');
     }
   }
+  
+  // Get active rides for a rider
+  Stream<List<RideRequest>> getRiderActiveRides(String riderId) {
+    return _firestore
+        .collection('rideRequests')
+        .where('acceptedBy', isEqualTo: riderId)
+        .where('status', whereIn: ['accepted', 'in_progress'])
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => RideRequest.fromMap(doc.data(), doc.id))
+            .toList());
+  }
+  
+  // Get user details by user ID
+  Future<UserModel> getUserDetails(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        return UserModel.fromMap(doc.data() as Map<String, dynamic>);
+      }
+      throw Exception('User not found');
+    } catch (e) {
+      throw Exception('Failed to get user details: $e');
+    }
+  }
 } 

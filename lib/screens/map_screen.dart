@@ -21,6 +21,7 @@ import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/ride_request_screen.dart';
 import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/screens/passenger/ride_waiting_screen.dart';
+import 'package:nift_final/screens/passenger/active_rides_screen.dart';
 
 class MapScreen extends StatefulWidget {
   final UserModel? user;
@@ -584,9 +585,21 @@ class _MapScreenState extends State<MapScreen> {
                 icon: const Icon(Icons.directions_car),
                 label: const Text('Active Rides'),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Active rides functionality coming soon!'),
+                  if (widget.user == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please log in to view your active rides'),
+                        backgroundColor: AppColors.errorColor,
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ActiveRidesScreen(
+                        passenger: widget.user!,
+                      ),
                     ),
                   );
                 },
