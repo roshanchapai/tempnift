@@ -201,14 +201,94 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
       
       _getRoutePolylines(_currentLocation!, pickupLocation);
     } else if (_rideStatus == 'in_progress') {
-      // Draw route from current location to destination
+      // Draw route from pickup location to destination, not from current location
+      final pickupLocation = LatLng(
+        widget.rideRequest.fromLocation.latitude,
+        widget.rideRequest.fromLocation.longitude,
+      );
+      
       final destinationLocation = LatLng(
         widget.rideRequest.toLocation.latitude,
         widget.rideRequest.toLocation.longitude,
       );
       
-      _getRoutePolylines(_currentLocation!, destinationLocation);
+      // Create two polylines: one for the actual route from pickup to destination
+      // and another for the current location to the pickup/destination based on ride status
+      _getRouteAndCurrentLocationPolylines(pickupLocation, destinationLocation);
     }
+  }
+  
+  // New method to handle both the fixed route and current location indicator
+  Future<void> _getRouteAndCurrentLocationPolylines(LatLng pickup, LatLng destination) async {
+    try {
+      // Get the fixed route from pickup to destination
+      final routePoints = await LocationService.getRoutePoints(pickup, destination);
+      
+      if (routePoints != null && routePoints.isNotEmpty && mounted) {
+        // Create a simple line from current location to nearest point on route
+        final LatLng currentLocation = _currentLocation!;
+        
+        setState(() {
+          _polylines = {
+            // Main route from pickup to destination
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: routePoints,
+              color: AppColors.primaryColor,
+              width: 5,
+            ),
+            // Current location indicator
+            Polyline(
+              polylineId: const PolylineId('current_location'),
+              points: [currentLocation, findNearestPointOnRoute(currentLocation, routePoints)],
+              color: AppColors.accentColor,
+              width: 3,
+              patterns: [PatternItem.dash(10), PatternItem.gap(5)],
+            ),
+          };
+        });
+        
+        // Update the rider marker
+        setState(() {
+          _markers = {
+            // Keep existing markers except the rider marker
+            ..._markers.where((marker) => marker.markerId.value != 'rider'),
+            // Add rider marker at current location
+            Marker(
+              markerId: const MarkerId('rider'),
+              position: currentLocation,
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+              infoWindow: const InfoWindow(title: 'Your Location'),
+            ),
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Error getting route polylines: $e');
+    }
+  }
+  
+  // Helper method to find the nearest point on a route to the current location
+  LatLng findNearestPointOnRoute(LatLng currentLocation, List<LatLng> routePoints) {
+    LatLng nearestPoint = routePoints.first;
+    double minDistance = double.infinity;
+    
+    for (final point in routePoints) {
+      final distance = calculateDistance(currentLocation, point);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPoint = point;
+      }
+    }
+    
+    return nearestPoint;
+  }
+  
+  // Simple distance calculation between two points
+  double calculateDistance(LatLng point1, LatLng point2) {
+    final double dx = point1.latitude - point2.latitude;
+    final double dy = point1.longitude - point2.longitude;
+    return dx * dx + dy * dy; // No need for square root for comparison
   }
   
   void _handleRideStatusUpdate(RideRequest? updatedRequest) {

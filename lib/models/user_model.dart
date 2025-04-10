@@ -9,6 +9,7 @@ class UserModel {
   final UserRole userRole;
   final String riderStatus; // 'not_applied', 'pending', 'approved', 'rejected'
   final DateTime createdAt;
+  final String? profileImageUrl; // Added for profile image storage
 
   UserModel({
     required this.uid,
@@ -18,6 +19,7 @@ class UserModel {
     required this.userRole,
     this.riderStatus = 'not_applied',
     required this.createdAt,
+    this.profileImageUrl,
   });
 
   // Convert UserModel to a Map for Firestore
@@ -30,6 +32,7 @@ class UserModel {
       'userRole': userRole.toString().split('.').last, // Convert enum to string
       'riderStatus': riderStatus,
       'createdAt': Timestamp.fromDate(createdAt),
+      'profileImageUrl': profileImageUrl,
     };
   }
 
@@ -42,6 +45,7 @@ class UserModel {
     UserRole? userRole,
     String? riderStatus,
     DateTime? createdAt,
+    String? profileImageUrl,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -51,6 +55,7 @@ class UserModel {
       userRole: userRole ?? this.userRole,
       riderStatus: riderStatus ?? this.riderStatus,
       createdAt: createdAt ?? this.createdAt,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
     );
   }
 
@@ -69,6 +74,7 @@ class UserModel {
         createdAt: map['createdAt'] != null 
             ? (map['createdAt'] as Timestamp).toDate()
             : DateTime.now(),
+        profileImageUrl: map['profileImageUrl'] as String?,
       );
     } catch (e) {
       throw FormatException('Failed to create UserModel from map: $e');

@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/role_switch_screen.dart';
+import 'package:nift_final/screens/profile_screen.dart';
+import 'package:nift_final/screens/settings_screen.dart';
+import 'package:nift_final/screens/ride_history_screen.dart';
+import 'package:nift_final/screens/help_support_screen.dart';
+import 'package:nift_final/screens/about_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart'; // Import constants which contains UserRole
 
@@ -28,43 +33,54 @@ class DrawerService {
       return;
     }
     
-    // TODO: Navigate to profile screen
+    // Navigate to profile screen
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile screen coming soon!')),
+      final updatedUser = await Navigator.of(context).push<UserModel>(
+        MaterialPageRoute(builder: (context) => ProfileScreen(user: user)),
       );
+      
+      // If we got an updated user back, call the callback
+      if (updatedUser != null && _roleSwitchCallback != null) {
+        _roleSwitchCallback!(updatedUser);
+      }
     }
   }
   
   /// Handle settings menu tap action
   void handleSettingsTap() {
-    // TODO: Navigate to settings screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Settings screen coming soon!')),
+    // Navigate to settings screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
   
   /// Handle ride history menu tap action
-  void handleHistoryTap() {
-    // TODO: Navigate to ride history screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ride history screen coming soon!')),
+  void handleHistoryTap(UserModel? user) {
+    if (user == null) {
+      // Not logged in, navigate to auth screen
+      _navigateToAuth();
+      return;
+    }
+    
+    // Navigate to ride history screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => RideHistoryScreen(user: user)),
     );
   }
   
   /// Handle help and support menu tap action
-  void handleHelpTap() {
-    // TODO: Navigate to help screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Help & Support screen coming soon!')),
+  void handleHelpTap(UserModel? user) {
+    // Navigate to help screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => HelpSupportScreen(user: user)),
     );
   }
   
   /// Handle about menu tap action
   void handleAboutTap() {
-    // TODO: Navigate to about screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('About screen coming soon!')),
+    // Navigate to about screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const AboutScreen()),
     );
   }
   

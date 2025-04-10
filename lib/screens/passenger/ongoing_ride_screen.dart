@@ -178,24 +178,21 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
         ),
       };
       
-      // If ride is in progress, update polyline from rider to destination
+      // If ride is in progress, we should still show the original route 
+      // from pickup to destination, not from rider's current location
       if (_rideStatus == 'in_progress') {
+        final pickup = LatLng(
+          widget.rideRequest.fromLocation.latitude,
+          widget.rideRequest.fromLocation.longitude,
+        );
+        
         final destination = LatLng(
           widget.rideRequest.toLocation.latitude,
           widget.rideRequest.toLocation.longitude,
         );
         
-        _polylines = {
-          Polyline(
-            polylineId: const PolylineId('route'),
-            points: [location, destination],
-            color: AppColors.primaryColor,
-            width: 5,
-          ),
-        };
-        
-        // Try to get actual route polylines
-        _getRoutePolyline(location, destination);
+        // Don't change the main route, just add a simple line from rider to route
+        _updatePolylineWithRiderLocation(pickup, destination, location);
       }
       // If ride is accepted but not yet in progress, update polyline from rider to pickup
       else if (_rideStatus == 'accepted') {
@@ -603,5 +600,59 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
         ),
       );
     }
+  }
+  
+  // New method to update polylines while maintaining the original route
+  Future<void> _updatePolylineWithRiderLocation(LatLng pickup, LatLng destination, LatLng riderLocation) async {
+    try {
+      // Get the actual route from pickup to destination
+      final points = await LocationService.getRoutePoints(pickup, destination);
+      
+      if (points != null && points.isNotEmpty && mounted) {
+        // Find the nearest point on the route to the rider's current location
+        final LatLng nearestPoint = _findNearestPointOnRoute(riderLocation, points);
+        
+        setState(() {
+          _polylines = {
+            // Main route from pickup to destination
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: points,
+              color: AppColors.primaryColor,
+              width: 5,
+            ),
+            // Line from rider to the nearest point on route
+            Polyline(
+              polylineId: const PolylineId('rider_indicator'),
+              points: [riderLocation, nearestPoint],
+              color: AppColors.accentColor,
+              width: 3,
+              patterns: [PatternItem.dash(10), PatternItem.gap(5)],
+            ),
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Error updating polyline: $e');
+    }
+  }
+  
+  // Helper to find the nearest point on a route to the rider's location
+  LatLng _findNearestPointOnRoute(LatLng point, List<LatLng> routePoints) {
+    LatLng nearestPoint = routePoints.first;
+    double minDistance = double.infinity;
+    
+    for (final routePoint in routePoints) {
+      final double dx = point.latitude - routePoint.latitude;
+      final double dy = point.longitude - routePoint.longitude;
+      final double distance = dx * dx + dy * dy;
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPoint = routePoint;
+      }
+    }
+    
+    return nearestPoint;
   }
 } 
