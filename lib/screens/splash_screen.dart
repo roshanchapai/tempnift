@@ -5,6 +5,7 @@ import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/home_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart';
+import 'package:nift_final/widgets/nift_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -122,31 +123,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             children: [
               // App Logo
               Container(
-                width: 120,
-                height: 120,
+                width: 240,
+                height: 240,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryColor,
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryColor.withOpacity(0.3),
+                      color: Colors.transparent,
                       blurRadius: 20,
-                      offset: const Offset(0, 10),
+                      offset: const Offset(0, 15),
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.directions_car,
-                  color: Colors.white,
-                  size: 60,
-                ),
+                child: const NiftLogo(size: 48.0),
               ),
               
               const SizedBox(height: 24),
               
               // App Name
               Text(
-                'Nift',
+                'Nepal Lift',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
@@ -165,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               
               // App Tagline
               Text(
-                'Nepal Lift',
+                'Less Traffic, More Connection',
                 style: TextStyle(
                   fontSize: 20,
                   color: AppColors.primaryTextColor,

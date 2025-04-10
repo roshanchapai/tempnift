@@ -8,6 +8,7 @@ import 'package:nift_final/services/ride_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/widgets/app_drawer.dart';
 import 'package:nift_final/screens/rider/ongoing_ride_screen.dart';
+import 'package:nift_final/widgets/nift_logo.dart';
 
 class RiderHomeScreen extends StatefulWidget {
   final UserModel user;
@@ -207,8 +208,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
                 CircleAvatar(
                   backgroundColor: Colors.white,
                   radius: 30,
-                  child: Icon(
-                    Icons.directions_car,
+                  child: const NiftLogo(
                     size: 30,
                     color: AppColors.primaryColor,
                   ),
@@ -669,8 +669,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.directions_car_outlined,
+            NiftLogo(
               size: 80,
               color: AppColors.primaryColor.withOpacity(0.5),
             ),

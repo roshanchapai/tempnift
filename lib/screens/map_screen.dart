@@ -22,6 +22,7 @@ import 'package:nift_final/screens/ride_request_screen.dart';
 import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/screens/passenger/ride_waiting_screen.dart';
 import 'package:nift_final/screens/passenger/active_rides_screen.dart';
+import 'package:nift_final/widgets/nift_logo.dart';
 
 class MapScreen extends StatefulWidget {
   final UserModel? user;
@@ -582,7 +583,7 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
               child: TextButton.icon(
-                icon: const Icon(Icons.directions_car),
+                icon: const NiftLogo(size: 24.0),
                 label: const Text('Active Rides'),
                 onPressed: () {
                   if (widget.user == null) {

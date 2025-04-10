@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../widgets/nift_logo.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({Key? key}) : super(key: key);
@@ -57,16 +58,7 @@ class AboutScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      width: 60,
-                      height: 60,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                        Icons.directions_car,
-                        size: 60,
-                        color: AppColors.primaryColor,
-                      ),
-                    ),
+                    child: const NiftLogo(size: 60),
                   ),
                   const SizedBox(height: 16),
                   const Text(
