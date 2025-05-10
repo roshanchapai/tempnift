@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nift_final/models/ride_request_model.dart';
@@ -8,6 +9,8 @@ import 'package:nift_final/services/ride_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:location/location.dart' as loc;
+import 'package:nift_final/services/rating_service.dart';
+import 'package:nift_final/widgets/star_rating.dart';
 
 class RiderOngoingRideScreen extends StatefulWidget {
   final RideRequest rideRequest;
@@ -331,7 +334,8 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
       // Show completed dialog after a short delay
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
-          _showRideCompletedDialog();
+          // Use default price for status updates
+          _showRideCompletedDialog(widget.rideRequest.offeredPrice);
         }
       });
     }
@@ -389,9 +393,60 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
     });
     
     try {
-      await _rideService.updateRideStatus(
+      // Calculate final price and factors
+      final pickup = LatLng(
+        widget.rideRequest.fromLocation.latitude,
+        widget.rideRequest.fromLocation.longitude,
+      );
+      
+      final destination = LatLng(
+        widget.rideRequest.toLocation.latitude,
+        widget.rideRequest.toLocation.longitude,
+      );
+      
+      // Use the offered price as base and adjust based on actual conditions
+      double finalPrice = widget.rideRequest.offeredPrice;
+      double estimatedDistance = 0;
+      
+      // Try to get a more accurate final price
+      try {
+        // If we have our current location as the end point
+        if (_currentLocation != null) {
+          // Calculate actual route distance
+          estimatedDistance = await _calculateActualDistance(pickup, _currentLocation!);
+          
+          // If the actual distance varies significantly from expected, adjust price
+          final expectedDistance = _calculateHaversineDistance(pickup, destination);
+          
+          // If actual distance is more than 10% greater than expected
+          if (estimatedDistance > expectedDistance * 1.1) {
+            // Calculate pro-rated increase (maximum 20% increase)
+            final ratio = math.min(estimatedDistance / expectedDistance, 1.2);
+            finalPrice = finalPrice * ratio;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error calculating final price: $e');
+        // Fall back to original price
+      }
+      
+      // Round to nearest 10
+      finalPrice = (finalPrice / 10.0).round() * 10.0;
+      
+      // Price factors to save for analytics
+      final priceFactors = {
+        'initialPrice': widget.rideRequest.offeredPrice,
+        'finalPrice': finalPrice,
+        'estimatedDistance': estimatedDistance,
+        'completionTime': DateTime.now().toIso8601String(),
+      };
+      
+      // Complete the ride with the final price
+      await _rideService.completeRide(
         requestId: widget.rideRequest.id,
-        newStatus: 'completed',
+        finalPrice: finalPrice,
+        estimatedDistance: estimatedDistance,
+        priceFactors: priceFactors,
       );
       
       if (!mounted) return;
@@ -404,7 +459,7 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
       });
       
       // Show completion dialog
-      _showRideCompletedDialog();
+      _showRideCompletedDialog(finalPrice);
       
     } catch (e) {
       if (!mounted) return;
@@ -420,6 +475,273 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         ),
       );
     }
+  }
+  
+  // Calculate distance using the Haversine formula
+  double _calculateHaversineDistance(LatLng point1, LatLng point2) {
+    const int earthRadius = 6371; // Earth's radius in kilometers
+    
+    // Convert latitude and longitude from degrees to radians
+    final double lat1 = _degreesToRadians(point1.latitude);
+    final double lon1 = _degreesToRadians(point1.longitude);
+    final double lat2 = _degreesToRadians(point2.latitude);
+    final double lon2 = _degreesToRadians(point2.longitude);
+    
+    // Haversine formula
+    final double dLat = lat2 - lat1;
+    final double dLon = lon2 - lon1;
+    final double a = _haversine(dLat) + 
+                     _haversine(dLon) * 
+                     math.cos(lat1) * 
+                     math.cos(lat2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    
+    return earthRadius * c; // Distance in kilometers
+  }
+  
+  // Helper functions for Haversine
+  double _degreesToRadians(double degrees) => degrees * math.pi / 180.0;
+  double _haversine(double value) => (1 - math.cos(value)) / 2;
+  
+  // Calculate actual route distance based on route points
+  Future<double> _calculateActualDistance(LatLng pickup, LatLng endpoint) async {
+    try {
+      final routePoints = await LocationService.getRoutePoints(pickup, endpoint);
+      
+      if (routePoints != null && routePoints.isNotEmpty) {
+        double totalDistance = 0.0;
+        
+        for (int i = 0; i < routePoints.length - 1; i++) {
+          totalDistance += _calculateHaversineDistance(routePoints[i], routePoints[i + 1]);
+        }
+        
+        return totalDistance;
+      }
+      
+      // Fallback to direct distance
+      return _calculateHaversineDistance(pickup, endpoint);
+    } catch (e) {
+      debugPrint('Error calculating route distance: $e');
+      return _calculateHaversineDistance(pickup, endpoint);
+    }
+  }
+  
+  void _showRideCompletedDialog(double finalPrice) {
+    try {
+      // Only show rating dialog for completed rides, not cancelled ones
+      if (_rideStatus == 'completed') {
+        _showRatingDialog();
+        return;
+      }
+      
+      // For cancelled rides, just show the standard completion dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(
+            _rideStatus == 'completed' ? 'Ride Completed' : 'Ride Cancelled',
+            style: TextStyle(
+              color: _rideStatus == 'completed'
+                  ? AppColors.successColor
+                  : AppColors.errorColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _rideStatus == 'completed'
+                    ? 'You have successfully completed the ride.'
+                    : 'The ride has been cancelled.',
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Final Amount:'),
+                  Text(
+                    'Rs. ${finalPrice.toInt()}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Go back to previous screen
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error showing completion dialog: $e');
+    }
+  }
+  
+  void _showRatingDialog() {
+    final RatingService _ratingService = RatingService();
+    int selectedRating = 0;
+    String comment = '';
+    bool isSubmitting = false;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text(
+                'Rate Your Passenger',
+                style: TextStyle(
+                  color: AppColors.primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'How was your experience with this passenger?',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Passenger info
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.surfaceColor,
+                          child: const Icon(
+                            Icons.person,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.passenger.name ?? 'Passenger',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                'Trip Total: Rs. ${widget.rideRequest.offeredPrice.toInt()}',
+                                style: AppTextStyles.captionStyle,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Star rating input
+                    StarRatingInput(
+                      onRatingChanged: (rating) {
+                        setState(() {
+                          selectedRating = rating;
+                        });
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Comment field
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Add a comment (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                      onChanged: (value) {
+                        comment = value;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting 
+                      ? null 
+                      : () {
+                          // Skip rating
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pop(); // Go back to previous screen
+                        },
+                  child: const Text('Skip'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting || selectedRating == 0
+                      ? null
+                      : () async {
+                          setState(() {
+                            isSubmitting = true;
+                          });
+                          
+                          try {
+                            await _ratingService.rateUser(
+                              userId: widget.passenger.uid,
+                              raterId: widget.rider.uid,
+                              rideId: widget.rideRequest.id,
+                              rating: selectedRating,
+                              comment: comment.isNotEmpty ? comment : null,
+                            );
+                            
+                            if (!mounted) return;
+                            
+                            Navigator.of(context).pop();
+                            
+                            // Show thank you confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Thank you for your rating!'),
+                                backgroundColor: AppColors.successColor,
+                              ),
+                            );
+                            
+                            Navigator.of(context).pop(); // Go back to previous screen
+                          } catch (e) {
+                            if (!mounted) return;
+                            
+                            setState(() {
+                              isSubmitting = false;
+                            });
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error submitting rating: $e'),
+                                backgroundColor: AppColors.errorColor,
+                              ),
+                            );
+                          }
+                        },
+                  child: const Text('Submit Rating'),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
   }
   
   Future<void> _cancelRide() async {
@@ -444,8 +766,8 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         _isRideCompleted = true;
       });
       
-      // Show cancellation dialog
-      _showRideCompletedDialog();
+      // Show cancellation dialog with original price
+      _showRideCompletedDialog(widget.rideRequest.offeredPrice);
       
     } catch (e) {
       if (!mounted) return;
@@ -501,37 +823,6 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         );
       }
     }
-  }
-  
-  void _showRideCompletedDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(
-          _rideStatus == 'completed' ? 'Ride Completed' : 'Ride Cancelled',
-          style: TextStyle(
-            color: _rideStatus == 'completed'
-                ? AppColors.successColor
-                : AppColors.errorColor,
-          ),
-        ),
-        content: Text(
-          _rideStatus == 'completed'
-              ? 'You have successfully completed this ride. Thank you!'
-              : 'This ride has been cancelled.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Go back to previous screen
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
   
   void _showCancelConfirmationDialog() {
@@ -875,6 +1166,48 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         return Icons.cancel;
       default:
         return Icons.info;
+    }
+  }
+
+  Future<void> _acceptRide() async {
+    if (_isUpdatingStatus) return;
+    
+    setState(() {
+      _isUpdatingStatus = true;
+    });
+    
+    try {
+      await _rideService.acceptRideRequest(
+        requestId: widget.rideRequest.id,
+        riderId: widget.rider.uid,
+        riderName: widget.rider.name ?? 'Unknown',
+        riderPhone: widget.rider.phoneNumber,
+      );
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isUpdatingStatus = false;
+        _rideStatus = 'accepted';
+        _statusMessage = 'You have accepted the ride. Head to pickup point.';
+      });
+      
+      // Update polylines after accepting
+      _updateRoutePolylines();
+      
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isUpdatingStatus = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to accept ride: $e'),
+          backgroundColor: AppColors.errorColor,
+        ),
+      );
     }
   }
 } 

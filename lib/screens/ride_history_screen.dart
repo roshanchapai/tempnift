@@ -92,11 +92,25 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> with SingleTicker
       }).toList();
       
       final List<Map<String, dynamic>> cancelledRides = cancelledSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
         return {
           'id': doc.id,
-          ...doc.data() as Map<String, dynamic>,
+          ...data,
         };
       }).toList();
+      
+      // If user is a passenger, fetch missing rider details for completed rides
+      if (!isRider) {
+        await _fetchMissingRiderDetails(completedRides);
+        // Also fetch missing rider details for cancelled rides that were previously accepted
+        await _fetchMissingRiderDetails(cancelledRides);
+        
+        // Filter out cancelled rides that were never accepted by a rider
+        // Only show cancelled rides where a driver had accepted the ride
+        if (!isRider) {
+          cancelledRides.removeWhere((ride) => ride['acceptedBy'] == null);
+        }
+      }
       
       setState(() {
         if (loadMore) {
@@ -264,6 +278,10 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> with SingleTicker
         ? ride['passengerName'] ?? 'Passenger'
         : ride['riderName'] ?? 'Rider';
     
+    final String otherPersonPhone = userRole == UserRole.rider
+        ? ride['passengerPhone'] ?? 'N/A'
+        : ride['riderPhone'] ?? 'N/A';
+    
     final String otherPersonId = userRole == UserRole.rider
         ? ride['passengerId'] ?? ''
         : ride['acceptedBy'] ?? '';
@@ -271,6 +289,22 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> with SingleTicker
     final IconData roleIcon = userRole == UserRole.rider
         ? Icons.person
         : Icons.directions_car;
+
+    // Get price information
+    final double offeredPrice = (ride['offeredPrice'] ?? 0).toDouble();
+    final double? finalPrice = ride['finalPrice']?.toDouble();
+    final double? estimatedDistance = ride['estimatedDistance']?.toDouble();
+    
+    // Determine if this is a ride that needs extra attention for display
+    final bool isCompletedWithRider = ride['status'] == 'completed' && 
+                                     userRole == UserRole.passenger && 
+                                     ride['acceptedBy'] != null &&
+                                     (ride['riderName'] == null || ride['riderPhone'] == null);
+    
+    // Determine if we should show driver phone info
+    final bool showDriverContact = userRole == UserRole.passenger && 
+                                  ride['status'] == 'completed' &&
+                                  ride['riderPhone'] != null;
     
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -329,122 +363,127 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> with SingleTicker
               
               // Locations
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    children: [
-                      const Icon(
-                        Icons.circle,
-                        size: 12,
-                        color: AppColors.successColor,
-                      ),
-                      Container(
-                        width: 1,
-                        height: 30,
-                        color: AppColors.secondaryTextColor.withOpacity(0.3),
-                      ),
-                      const Icon(
-                        Icons.location_on,
-                        size: 12,
-                        color: AppColors.errorColor,
-                      ),
-                    ],
+                  const Icon(
+                    Icons.location_on,
+                    color: AppColors.pickupMarkerColor,
+                    size: 16,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          ride['fromAddress'] ?? 'Pickup location',
-                          style: AppTextStyles.captionStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          ride['toAddress'] ?? 'Destination',
-                          style: AppTextStyles.captionStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                    child: Text(
+                      ride['fromAddress'] ?? 'Unknown pickup',
+                      style: AppTextStyles.bodyStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-              
-              const Divider(height: 24),
-              
-              // Price and distance/duration
+              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.attach_money,
-                        size: 20,
-                        color: AppColors.successColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Rs. ${ride['offeredPrice'] ?? 0}',
-                        style: AppTextStyles.bodyBoldStyle,
-                      ),
-                    ],
+                  const Icon(
+                    Icons.flag,
+                    color: AppColors.destinationMarkerColor,
+                    size: 16,
                   ),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: AppColors.secondaryTextColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${_calculateTimeAgo(timestamp)}',
-                        style: AppTextStyles.captionStyle,
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      ride['toAddress'] ?? 'Unknown destination',
+                      style: AppTextStyles.bodyStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
               
               const SizedBox(height: 16),
               
-              // Other person info
+              // Person info and price
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      roleIcon,
-                      size: 16,
-                      color: AppColors.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Person info
+                  Row(
                     children: [
+                      Icon(
+                        roleIcon,
+                        size: 16,
+                        color: AppColors.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         otherPersonName,
-                        style: AppTextStyles.bodyStyle,
+                        style: AppTextStyles.bodyStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // Price info
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.attach_money,
+                        size: 16,
+                        color: AppColors.accentColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        // Show final price if available, otherwise offered price
+                        'Rs. ${(finalPrice ?? offeredPrice).toInt()}',
+                        style: AppTextStyles.bodyStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryColor,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
+              
+              // Show driver phone if available
+              if (showDriverContact) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.phone,
+                      size: 14,
+                      color: AppColors.secondaryTextColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      otherPersonPhone,
+                      style: AppTextStyles.captionStyle,
+                    ),
+                  ],
+                ),
+              ],
+              
+              // Show distance info if available
+              if (estimatedDistance != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Icon(
+                      Icons.route,
+                      size: 14,
+                      color: AppColors.secondaryTextColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${estimatedDistance.toStringAsFixed(1)} km',
+                      style: AppTextStyles.captionStyle,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -464,6 +503,44 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> with SingleTicker
       return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
     } else {
       return 'Just now';
+    }
+  }
+
+  // Helper method to fetch missing rider details
+  Future<void> _fetchMissingRiderDetails(List<Map<String, dynamic>> rides) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final List<Future<void>> fetchTasks = [];
+    
+    for (final ride in rides) {
+      // Only process rides that have an acceptedBy but missing rider details
+      if (ride['acceptedBy'] != null && 
+          (ride['riderName'] == null || ride['riderPhone'] == null)) {
+        
+        final String riderId = ride['acceptedBy'];
+        fetchTasks.add(
+          firestore.collection('users').doc(riderId).get().then((userDoc) {
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              // Update the ride with rider info
+              ride['riderName'] = userData['name'] ?? 'Unknown Rider';
+              ride['riderPhone'] = userData['phoneNumber'] ?? 'No Phone';
+              
+              // Also update the original document to fix it for future queries
+              firestore.collection('rideRequests').doc(ride['id']).update({
+                'riderName': ride['riderName'],
+                'riderPhone': ride['riderPhone'],
+              });
+            }
+          }).catchError((e) {
+            debugPrint('Error fetching rider details: $e');
+          })
+        );
+      }
+    }
+    
+    // Wait for all fetch tasks to complete
+    if (fetchTasks.isNotEmpty) {
+      await Future.wait(fetchTasks);
     }
   }
 } 

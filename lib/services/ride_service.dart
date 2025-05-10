@@ -104,11 +104,16 @@ class RideService {
   Future<void> acceptRideRequest({
     required String requestId,
     required String riderId,
+    required String riderName,
+    required String riderPhone,
   }) async {
     try {
       await _firestore.collection('rideRequests').doc(requestId).update({
         'status': 'accepted',
         'acceptedBy': riderId,
+        'riderName': riderName,
+        'riderPhone': riderPhone,
+        'acceptedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       throw Exception('Failed to accept ride request: $e');
@@ -116,11 +121,32 @@ class RideService {
   }
   
   // Complete a ride
-  Future<void> completeRide(String requestId) async {
+  Future<void> completeRide({
+    required String requestId,
+    double? finalPrice,
+    double? estimatedDistance,
+    Map<String, dynamic>? priceFactors,
+  }) async {
     try {
-      await _firestore.collection('rideRequests').doc(requestId).update({
+      final data = <String, dynamic>{
         'status': 'completed',
-      });
+        'completedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Add price data if available
+      if (finalPrice != null) {
+        data['finalPrice'] = finalPrice;
+      }
+      
+      if (estimatedDistance != null) {
+        data['estimatedDistance'] = estimatedDistance;
+      }
+      
+      if (priceFactors != null) {
+        data['priceFactors'] = priceFactors;
+      }
+
+      await _firestore.collection('rideRequests').doc(requestId).update(data);
     } catch (e) {
       throw Exception('Failed to complete ride: $e');
     }
@@ -230,6 +256,51 @@ class RideService {
       throw Exception('User not found');
     } catch (e) {
       throw Exception('Failed to get user details: $e');
+    }
+  }
+
+  Future<void> _fetchMissingRiderDetails(List<Map<String, dynamic>> rides) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final List<Future<void>> fetchTasks = [];
+    
+    for (final ride in rides) {
+      // Mark whether this ride was ever accepted
+      ride['wasAccepted'] = ride['acceptedBy'] != null;
+      
+      // Only process rides that have an acceptedBy but missing rider details
+      if (ride['wasAccepted'] && 
+          (ride['riderName'] == null || ride['riderPhone'] == null)) {
+        
+        final String riderId = ride['acceptedBy'];
+        fetchTasks.add(
+          firestore.collection('users').doc(riderId).get().then((userDoc) {
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              // Update the ride with rider info
+              ride['riderName'] = userData['name'] ?? 'Unknown Rider';
+              ride['riderPhone'] = userData['phoneNumber'] ?? 'No Phone';
+              
+              // Also update the original document to fix it for future queries
+              firestore.collection('rideRequests').doc(ride['id']).update({
+                'riderName': ride['riderName'],
+                'riderPhone': ride['riderPhone'],
+              });
+            } else {
+              // User document doesn't exist anymore
+              ride['riderName'] = 'Rider (Account Deleted)';
+              ride['riderDeleted'] = true;
+            }
+          }).catchError((e) {
+            debugPrint('Error fetching rider details: $e');
+            ride['fetchError'] = true;
+          })
+        );
+      }
+    }
+    
+    // Wait for all fetch tasks to complete
+    if (fetchTasks.isNotEmpty) {
+      await Future.wait(fetchTasks);
     }
   }
 } 

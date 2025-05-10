@@ -121,6 +121,8 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> with SingleTickerProv
       await _rideService.acceptRideRequest(
         requestId: requestId,
         riderId: widget.user.uid,
+        riderName: widget.user.name ?? 'Unknown Rider',
+        riderPhone: widget.user.phoneNumber,
       );
       
       if (!mounted) return;

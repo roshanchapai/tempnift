@@ -7,6 +7,9 @@ import 'package:nift_final/services/location_service.dart';
 import 'package:nift_final/services/ride_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
+import 'package:nift_final/services/rating_service.dart';
+import 'package:nift_final/widgets/star_rating.dart';
 
 class PassengerOngoingRideScreen extends StatefulWidget {
   final RideRequest rideRequest;
@@ -448,6 +451,13 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   
   void _showRideCompletedDialog() {
     try {
+      // Only show rating dialog for completed rides, not cancelled ones
+      if (_rideStatus == 'completed') {
+        _showRatingDialog();
+        return;
+      }
+      
+      // For cancelled rides, show the standard completion dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -479,6 +489,163 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
     } catch (e) {
       debugPrint('Error showing completion dialog: $e');
     }
+  }
+  
+  void _showRatingDialog() {
+    final RatingService _ratingService = RatingService();
+    int selectedRating = 0;
+    String comment = '';
+    bool isSubmitting = false;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text(
+                'Rate Your Rider',
+                style: TextStyle(
+                  color: AppColors.primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'How was your experience with this rider?',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Rider info
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.surfaceColor,
+                          child: const Icon(
+                            Icons.directions_car,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.rider.name ?? 'Rider',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (widget.rideRequest.finalPrice != null)
+                                Text(
+                                  'Trip Total: Rs. ${widget.rideRequest.finalPrice!.toInt()}',
+                                  style: AppTextStyles.captionStyle,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Star rating input
+                    StarRatingInput(
+                      onRatingChanged: (rating) {
+                        setState(() {
+                          selectedRating = rating;
+                        });
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Comment field
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Add a comment (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                      onChanged: (value) {
+                        comment = value;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting 
+                      ? null 
+                      : () {
+                          // Skip rating
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pop(); // Go back to previous screen
+                        },
+                  child: const Text('Skip'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting || selectedRating == 0
+                      ? null
+                      : () async {
+                          setState(() {
+                            isSubmitting = true;
+                          });
+                          
+                          try {
+                            await _ratingService.rateUser(
+                              userId: widget.rider.uid,
+                              raterId: widget.passenger.uid,
+                              rideId: widget.rideRequest.id,
+                              rating: selectedRating,
+                              comment: comment.isNotEmpty ? comment : null,
+                            );
+                            
+                            if (!mounted) return;
+                            
+                            Navigator.of(context).pop();
+                            
+                            // Show thank you confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Thank you for your rating!'),
+                                backgroundColor: AppColors.successColor,
+                              ),
+                            );
+                            
+                            Navigator.of(context).pop(); // Go back to previous screen
+                          } catch (e) {
+                            if (!mounted) return;
+                            
+                            setState(() {
+                              isSubmitting = false;
+                            });
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error submitting rating: $e'),
+                                backgroundColor: AppColors.errorColor,
+                              ),
+                            );
+                          }
+                        },
+                  child: const Text('Submit Rating'),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
   }
 
   @override

@@ -12,8 +12,14 @@ class RideRequest {
   final GeoPoint toLocation;
   final double offeredPrice;
   final DateTime timestamp;
-  final String status; // 'pending', 'accepted', 'completed', 'cancelled'
+  final String status; // 'pending', 'accepted', 'in_progress', 'completed', 'cancelled'
   final String? acceptedBy;
+  final String? riderName;
+  final String? riderPhone;
+  final double? finalPrice;
+  final double? estimatedDistance;
+  final Map<String, dynamic>? priceFactors;
+  final DateTime? completedAt;
   
   RideRequest({
     required this.id,
@@ -28,6 +34,12 @@ class RideRequest {
     required this.timestamp,
     required this.status,
     this.acceptedBy,
+    this.riderName,
+    this.riderPhone,
+    this.finalPrice,
+    this.estimatedDistance,
+    this.priceFactors,
+    this.completedAt,
   });
   
   factory RideRequest.fromMap(Map<String, dynamic> map, String id) {
@@ -44,11 +56,17 @@ class RideRequest {
       timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: map['status'] ?? 'pending',
       acceptedBy: map['acceptedBy'],
+      riderName: map['riderName'],
+      riderPhone: map['riderPhone'],
+      finalPrice: map['finalPrice']?.toDouble(),
+      estimatedDistance: map['estimatedDistance']?.toDouble(),
+      priceFactors: map['priceFactors'] as Map<String, dynamic>?,
+      completedAt: (map['completedAt'] as Timestamp?)?.toDate(),
     );
   }
   
   Map<String, dynamic> toMap() {
-    return {
+    final map = {
       'passengerId': passengerId,
       'passengerName': passengerName,
       'passengerPhone': passengerPhone,
@@ -57,10 +75,20 @@ class RideRequest {
       'fromLocation': fromLocation,
       'toLocation': toLocation,
       'offeredPrice': offeredPrice,
-      'timestamp': FieldValue.serverTimestamp(),
+      'timestamp': Timestamp.fromDate(timestamp),
       'status': status,
       'acceptedBy': acceptedBy,
     };
+    
+    // Only add these fields if they're not null
+    if (riderName != null) map['riderName'] = riderName;
+    if (riderPhone != null) map['riderPhone'] = riderPhone;
+    if (finalPrice != null) map['finalPrice'] = finalPrice;
+    if (estimatedDistance != null) map['estimatedDistance'] = estimatedDistance;
+    if (priceFactors != null) map['priceFactors'] = priceFactors;
+    if (completedAt != null) map['completedAt'] = Timestamp.fromDate(completedAt!);
+
+    return map;
   }
   
   RideRequest copyWith({
@@ -76,6 +104,12 @@ class RideRequest {
     DateTime? timestamp,
     String? status,
     String? acceptedBy,
+    String? riderName,
+    String? riderPhone,
+    double? finalPrice,
+    double? estimatedDistance,
+    Map<String, dynamic>? priceFactors,
+    DateTime? completedAt,
   }) {
     return RideRequest(
       id: id ?? this.id,
@@ -90,6 +124,12 @@ class RideRequest {
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
       acceptedBy: acceptedBy ?? this.acceptedBy,
+      riderName: riderName ?? this.riderName,
+      riderPhone: riderPhone ?? this.riderPhone,
+      finalPrice: finalPrice ?? this.finalPrice,
+      estimatedDistance: estimatedDistance ?? this.estimatedDistance,
+      priceFactors: priceFactors ?? this.priceFactors,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 } 

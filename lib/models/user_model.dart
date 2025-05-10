@@ -10,6 +10,9 @@ class UserModel {
   final String riderStatus; // 'not_applied', 'pending', 'approved', 'rejected'
   final DateTime createdAt;
   final String? profileImageUrl; // Added for profile image storage
+  final int totalRatings; // Sum of all ratings received
+  final int ratingCount; // Number of ratings received
+  final double averageRating; // Calculated average rating
 
   UserModel({
     required this.uid,
@@ -20,6 +23,9 @@ class UserModel {
     this.riderStatus = 'not_applied',
     required this.createdAt,
     this.profileImageUrl,
+    this.totalRatings = 0,
+    this.ratingCount = 0,
+    this.averageRating = 0.0,
   });
 
   // Convert UserModel to a Map for Firestore
@@ -33,6 +39,9 @@ class UserModel {
       'riderStatus': riderStatus,
       'createdAt': Timestamp.fromDate(createdAt),
       'profileImageUrl': profileImageUrl,
+      'totalRatings': totalRatings,
+      'ratingCount': ratingCount,
+      'averageRating': averageRating,
     };
   }
 
@@ -46,6 +55,9 @@ class UserModel {
     String? riderStatus,
     DateTime? createdAt,
     String? profileImageUrl,
+    int? totalRatings,
+    int? ratingCount,
+    double? averageRating,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -56,6 +68,9 @@ class UserModel {
       riderStatus: riderStatus ?? this.riderStatus,
       createdAt: createdAt ?? this.createdAt,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      totalRatings: totalRatings ?? this.totalRatings,
+      ratingCount: ratingCount ?? this.ratingCount,
+      averageRating: averageRating ?? this.averageRating,
     );
   }
 
@@ -75,6 +90,9 @@ class UserModel {
             ? (map['createdAt'] as Timestamp).toDate()
             : DateTime.now(),
         profileImageUrl: map['profileImageUrl'] as String?,
+        totalRatings: map['totalRatings'] as int? ?? 0,
+        ratingCount: map['ratingCount'] as int? ?? 0,
+        averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0.0,
       );
     } catch (e) {
       throw FormatException('Failed to create UserModel from map: $e');
