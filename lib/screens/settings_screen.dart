@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:nift_final/models/user_model.dart';
+import 'package:nift_final/screens/notification_settings_screen.dart';
+import 'package:nift_final/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -11,14 +14,16 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final AuthService _authService = AuthService();
   bool _isLoading = true;
+  UserModel? _currentUser;
+  
   // Hardcoded version string instead of using package_info_plus
   final String _appVersion = '1.0.0';
   
   // Settings values
   bool _notificationsEnabled = true;
   bool _locationInBackground = true;
-  bool _emailNotifications = true;
   String _distanceUnit = 'km';
   String _language = 'English';
   bool _darkMode = false;
@@ -27,6 +32,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    _loadCurrentUser();
+  }
+  
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
   }
   
   Future<void> _loadSettings() async {
@@ -37,7 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
           _locationInBackground = prefs.getBool('location_background') ?? true;
-          _emailNotifications = prefs.getBool('email_notifications') ?? true;
           _distanceUnit = prefs.getString('distance_unit') ?? 'km';
           _language = prefs.getString('language') ?? 'English';
           _darkMode = prefs.getBool('dark_mode') ?? false;
@@ -63,9 +81,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await prefs.setBool(key, value as bool);
           break;
         case 'location_background':
-          await prefs.setBool(key, value as bool);
-          break;
-        case 'email_notifications':
           await prefs.setBool(key, value as bool);
           break;
         case 'distance_unit':
@@ -119,7 +134,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('notifications_enabled');
                 await prefs.remove('location_background');
-                await prefs.remove('email_notifications');
                 await prefs.remove('distance_unit');
                 await prefs.remove('language');
                 await prefs.remove('dark_mode');
@@ -190,18 +204,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   secondary: const Icon(Icons.notifications_outlined),
                 ),
                 
-                SwitchListTile(
-                  value: _emailNotifications,
-                  onChanged: (value) {
-                    setState(() {
-                      _emailNotifications = value;
-                    });
-                    _updateSetting('email_notifications', value);
-                  },
-                  title: const Text('Email Notifications'),
-                  subtitle: const Text('Receive ride receipts and promotions'),
-                  secondary: const Icon(Icons.email_outlined),
-                ),
+                // Role-specific notification settings
+                if (_currentUser != null)
+                  ListTile(
+                    title: const Text('Role-Specific Notifications'),
+                    subtitle: const Text('Configure separate notifications for passenger and rider modes'),
+                    leading: const Icon(Icons.notifications_active_outlined),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NotificationSettingsScreen(user: _currentUser!),
+                        ),
+                      );
+                    },
+                  ),
                 
                 // Location section
                 _buildSectionHeader('Location'),

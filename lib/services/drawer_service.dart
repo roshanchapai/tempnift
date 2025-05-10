@@ -8,12 +8,14 @@ import 'package:nift_final/screens/ride_history_screen.dart';
 import 'package:nift_final/screens/help_support_screen.dart';
 import 'package:nift_final/screens/about_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
+import 'package:nift_final/services/role_preference_service.dart';
 import 'package:nift_final/utils/constants.dart'; // Import constants which contains UserRole
 
 /// Service class to handle drawer-related operations
 class DrawerService {
   final BuildContext context;
   final AuthService _authService = AuthService();
+  final RolePreferenceService _rolePreferenceService = RolePreferenceService();
   
   // Callback function to update the parent with the new user model after role switch
   Function(UserModel? updatedUser)? _roleSwitchCallback;
@@ -113,6 +115,16 @@ class DrawerService {
     }
     
     try {
+      // Save current role state before switching
+      final currentRole = user.userRole;
+      final currentScreen = ModalRoute.of(context)?.settings.name ?? 'home_screen';
+      
+      if (currentRole == UserRole.passenger) {
+        await _rolePreferenceService.saveLastPassengerView(currentScreen);
+      } else {
+        await _rolePreferenceService.saveLastRiderView(currentScreen);
+      }
+      
       // Navigate to role switch screen
       final updatedUser = await Navigator.of(context).push<UserModel>(
         MaterialPageRoute(
@@ -123,6 +135,10 @@ class DrawerService {
       // If we received an updated user model back, we can use it
       // otherwise, do nothing as the user likely cancelled
       if (updatedUser != null && context.mounted) {
+        // Get preferences for the new role
+        final newRolePrefs = await _rolePreferenceService.getPreferencesForRole(updatedUser.userRole);
+        final lastView = await _rolePreferenceService.getLastViewForRole(updatedUser.userRole);
+        
         // Call the callback to update the parent component
         if (_roleSwitchCallback != null) {
           _roleSwitchCallback!(updatedUser);
@@ -135,6 +151,12 @@ class DrawerService {
             backgroundColor: AppColors.successColor,
           ),
         );
+        
+        // Apply role-specific preferences if available
+        debugPrint('Loaded preferences for ${updatedUser.userRole}: ${newRolePrefs.toString()}');
+        if (lastView != null) {
+          debugPrint('Last view for this role: ${lastView['viewName']}');
+        }
       }
     } catch (e) {
       if (context.mounted) {

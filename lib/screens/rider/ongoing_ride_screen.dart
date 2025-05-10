@@ -1,16 +1,19 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/services/location_service.dart';
 import 'package:nift_final/services/ride_service.dart';
+import 'package:nift_final/services/ride_session_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:location/location.dart' as loc;
 import 'package:nift_final/services/rating_service.dart';
 import 'package:nift_final/widgets/star_rating.dart';
+import 'package:nift_final/widgets/chat_button.dart';
 
 class RiderOngoingRideScreen extends StatefulWidget {
   final RideRequest rideRequest;
@@ -30,6 +33,7 @@ class RiderOngoingRideScreen extends StatefulWidget {
 
 class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   final RideService _rideService = RideService();
+  final RideSessionService _rideSessionService = RideSessionService();
   final loc.Location _location = loc.Location();
   final Completer<GoogleMapController> _mapController = Completer<GoogleMapController>();
   
@@ -42,6 +46,7 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   String _rideStatus = 'accepted';
   String _statusMessage = 'Please pick up your passenger';
   bool _isRideCompleted = false;
+  bool _isRatingDialogShown = false;
   
   bool _isUpdatingStatus = false;
   LatLng? _currentLocation;
@@ -49,9 +54,21 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   @override
   void initState() {
     super.initState();
+    // Save the active ride session
+    _saveRideSession();
+    
     _initializeMapMarkers();
     _startListeningToRideStatus();
     _startLocationUpdates();
+  }
+  
+  // Save the active ride session to SharedPreferences
+  Future<void> _saveRideSession() async {
+    await _rideSessionService.saveActiveRiderRide(
+      rideRequest: widget.rideRequest,
+      rider: widget.rider,
+      passenger: widget.passenger,
+    );
   }
   
   @override
@@ -313,6 +330,9 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   void _handleRideStatusUpdate(RideRequest? updatedRequest) {
     if (!mounted || updatedRequest == null) return;
     
+    final bool wasCompleted = _isRideCompleted;
+    final String previousStatus = _rideStatus;
+    
     setState(() {
       _rideStatus = updatedRequest.status;
       
@@ -327,13 +347,18 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
       }
     });
     
+    // If ride just became completed/cancelled, clear the session
+    if (!wasCompleted && _isRideCompleted) {
+      _rideSessionService.clearActiveRiderRide();
+    }
+    
     // Update polylines based on new status
     _updateRoutePolylines();
     
     if (_isRideCompleted) {
       // Show completed dialog after a short delay
       Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
+        if (mounted && !_isRatingDialogShown) {
           // Use default price for status updates
           _showRideCompletedDialog(widget.rideRequest.offeredPrice);
         }
@@ -458,7 +483,8 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         _isRideCompleted = true;
       });
       
-      // Show completion dialog
+      // Show completion dialog and mark as shown
+      _isRatingDialogShown = true;
       _showRideCompletedDialog(finalPrice);
       
     } catch (e) {
@@ -528,6 +554,12 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
   
   void _showRideCompletedDialog(double finalPrice) {
     try {
+      // Clear the active ride session
+      _rideSessionService.clearActiveRiderRide();
+      
+      // Mark the dialog as shown
+      _isRatingDialogShown = true;
+      
       // Only show rating dialog for completed rides, not cancelled ones
       if (_rideStatus == 'completed') {
         _showRatingDialog();
@@ -756,6 +788,9 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
         requestId: widget.rideRequest.id,
         newStatus: 'cancelled',
       );
+      
+      // Clear the active ride session
+      await _rideSessionService.clearActiveRiderRide();
       
       if (!mounted) return;
       
@@ -1134,6 +1169,11 @@ class _RiderOngoingRideScreenState extends State<RiderOngoingRideScreen> {
               ),
             ),
           ],
+        ),
+        floatingActionButton: ChatButton(
+          rideRequest: widget.rideRequest,
+          currentUser: widget.rider,
+          otherUser: widget.passenger,
         ),
       ),
     );

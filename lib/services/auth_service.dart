@@ -272,4 +272,14 @@ class AuthService {
       return null;
     }
   }
+
+  // Get current user data
+  Future<UserModel?> getCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+    
+    return await getUserData(user.uid);
+  }
 }

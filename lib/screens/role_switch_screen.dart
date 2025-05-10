@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/rider_registration_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
+import 'package:nift_final/services/role_preference_service.dart';
 import 'package:nift_final/utils/constants.dart';
 
 class RoleSwitchScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class RoleSwitchScreen extends StatefulWidget {
 
 class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
   final AuthService _authService = AuthService();
+  final RolePreferenceService _rolePreferenceService = RolePreferenceService();
   late UserModel _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
@@ -23,6 +25,22 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
   void initState() {
     super.initState();
     _currentUser = widget.user;
+  }
+
+  // Save current role state before switching
+  Future<void> _saveCurrentRoleState() async {
+    final currentRole = _currentUser.userRole;
+    final currentView = ModalRoute.of(context)?.settings.name ?? 'home_screen';
+    
+    try {
+      if (currentRole == UserRole.passenger) {
+        await _rolePreferenceService.saveLastPassengerView(currentView);
+      } else {
+        await _rolePreferenceService.saveLastRiderView(currentView);
+      }
+    } catch (e) {
+      debugPrint('Error saving role state: $e');
+    }
   }
 
   // Switch user role
@@ -35,6 +53,9 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> {
     });
 
     try {
+      // Save current role state before switching
+      await _saveCurrentRoleState();
+      
       final newRole = _currentUser.userRole == UserRole.passenger
           ? UserRole.rider
           : UserRole.passenger;

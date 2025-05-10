@@ -2,11 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/models/user_model.dart';
+import 'package:nift_final/services/chat_service.dart';
+import 'package:nift_final/services/notification_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:flutter/foundation.dart';
 
 class RideService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
+  final ChatService _chatService = ChatService();
   
   // Create a new ride request
   Future<RideRequest> createRideRequest({
@@ -115,7 +119,32 @@ class RideService {
         'riderPhone': riderPhone,
         'acceptedAt': FieldValue.serverTimestamp(),
       });
+      
+      // Get the ride request details to send notification
+      final rideRequest = await getRideRequest(requestId);
+      if (rideRequest != null) {
+        // Get passenger details
+        final passenger = await getUserDetails(rideRequest.passengerId);
+        
+        // Notify the passenger that their ride was accepted
+        await _notificationService.showPassengerRideNotification(
+          title: 'Ride Accepted!',
+          body: 'Your ride has been accepted by $riderName',
+          payload: 'ride_accepted:$requestId',
+        );
+        
+        // Send a system message to the chat
+        await _chatService.sendRideStatusUpdate(
+          rideRequestId: requestId,
+          ride: rideRequest,
+          status: 'accepted',
+        );
+        
+        // Also log to console
+        debugPrint('Sent notification to passenger ${passenger.name} about ride acceptance');
+      }
     } catch (e) {
+      debugPrint('Error in acceptRideRequest: $e');
       throw Exception('Failed to accept ride request: $e');
     }
   }
@@ -147,7 +176,40 @@ class RideService {
       }
 
       await _firestore.collection('rideRequests').doc(requestId).update(data);
+      
+      // Get the ride request details to send notification
+      final rideRequest = await getRideRequest(requestId);
+      if (rideRequest != null && rideRequest.acceptedBy != null) {
+        // Get passenger and rider details
+        final passenger = await getUserDetails(rideRequest.passengerId);
+        final rider = await getUserDetails(rideRequest.acceptedBy!);
+        
+        // Notify the passenger that their ride is completed
+        await _notificationService.showPassengerRideNotification(
+          title: 'Ride Completed',
+          body: 'Your ride has been completed. Total fare: Rs.${finalPrice?.toInt() ?? rideRequest.offeredPrice.toInt()}',
+          payload: 'ride_completed:$requestId',
+        );
+        
+        // Notify the rider that the ride is completed
+        await _notificationService.showRiderRideNotification(
+          title: 'Ride Completed',
+          body: 'Ride with ${passenger.name ?? 'passenger'} completed. Earned: Rs.${finalPrice?.toInt() ?? rideRequest.offeredPrice.toInt()}',
+          payload: 'ride_completed:$requestId',
+        );
+        
+        // Send a system message to the chat
+        await _chatService.sendRideStatusUpdate(
+          rideRequestId: requestId,
+          ride: rideRequest,
+          status: 'completed',
+        );
+        
+        // Also log to console
+        debugPrint('Sent ride completion notifications to passenger and rider');
+      }
     } catch (e) {
+      debugPrint('Error in completeRide: $e');
       throw Exception('Failed to complete ride: $e');
     }
   }
@@ -155,10 +217,41 @@ class RideService {
   // Cancel a ride request
   Future<void> cancelRideRequest(String requestId) async {
     try {
+      // Get the ride details first so we know who to notify
+      final ride = await getRideRequest(requestId);
+      if (ride == null) {
+        throw Exception('Ride request not found');
+      }
+      
+      // Update the status
       await _firestore.collection('rideRequests').doc(requestId).update({
         'status': 'cancelled',
+        'cancelledAt': FieldValue.serverTimestamp(),
       });
+      
+      if (ride.acceptedBy != null) {
+        // This ride had been accepted, so notify the rider
+        final rider = await getUserDetails(ride.acceptedBy!);
+        final passenger = await getUserDetails(ride.passengerId);
+        
+        // Notify the rider that the ride was cancelled
+        await _notificationService.showRiderRideNotification(
+          title: 'Ride Cancelled',
+          body: 'Ride with ${passenger.name ?? 'passenger'} has been cancelled.',
+          payload: 'ride_cancelled:$requestId',
+        );
+        
+        // Send a system message to the chat
+        await _chatService.sendRideStatusUpdate(
+          rideRequestId: requestId,
+          ride: ride,
+          status: 'cancelled',
+        );
+        
+        debugPrint('Sent ride cancellation notification to rider');
+      }
     } catch (e) {
+      debugPrint('Error canceling ride request: $e');
       throw Exception('Failed to cancel ride request: $e');
     }
   }
@@ -228,6 +321,17 @@ class RideService {
         'status': newStatus,
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
+      
+      // Get the ride request to send status update
+      final rideRequest = await getRideRequest(requestId);
+      if (rideRequest != null) {
+        // Send a system message to the chat
+        await _chatService.sendRideStatusUpdate(
+          rideRequestId: requestId,
+          ride: rideRequest,
+          status: newStatus,
+        );
+      }
     } catch (e) {
       throw Exception('Failed to update ride status: $e');
     }
@@ -301,6 +405,25 @@ class RideService {
     // Wait for all fetch tasks to complete
     if (fetchTasks.isNotEmpty) {
       await Future.wait(fetchTasks);
+    }
+  }
+
+  // Get a specific ride request by ID
+  Future<RideRequest?> getRideRequest(String requestId) async {
+    try {
+      final doc = await _firestore
+          .collection('rideRequests')
+          .doc(requestId)
+          .get();
+      
+      if (doc.exists) {
+        return RideRequest.fromMap(doc.data()!, doc.id);
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error getting ride request: $e');
+      return null;
     }
   }
 } 

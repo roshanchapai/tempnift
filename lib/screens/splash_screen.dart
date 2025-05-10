@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/screens/admin/admin_dashboard_screen.dart';
 import 'package:nift_final/screens/auth_screen.dart';
 import 'package:nift_final/screens/home_screen.dart';
 import 'package:nift_final/services/auth_service.dart';
+import 'package:nift_final/services/ride_session_service.dart';
+import 'package:nift_final/services/role_preference_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/widgets/nift_logo.dart';
 
@@ -16,6 +19,8 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
+  final RideSessionService _rideSessionService = RideSessionService();
+  final RolePreferenceService _rolePreferenceService = RolePreferenceService();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   
@@ -53,49 +58,52 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   
   // Check if user is logged in
   Future<void> _checkAuthStatus() async {
-    if (!mounted) return;
-    
     try {
-      if (_authService.isLoggedIn) {
-        // User is logged in
-        final userData = await _authService.getUserData(_authService.currentUserId!);
-        
-        if (!mounted) return;
-        
-        if (userData != null) {
-          // Check if user is admin
-          final isAdmin = await _authService.isAdmin(userData.phoneNumber);
-          
-          if (isAdmin) {
-            // Navigate to admin dashboard
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
-            );
-            return;
-          }
-          
-          if (userData.name != null) {
-            // User has completed profile
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => HomeScreen(user: userData)),
-            );
-          } else {
-            // User needs to complete profile
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const AuthScreen()),
-            );
-          }
-        } else {
-          // User data not found, redirect to auth
+      final user = await _authService.getCurrentUser();
+      
+      if (user == null) {
+        // Not logged in, navigate to auth screen
+        if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const AuthScreen()),
           );
         }
-      } else {
-        // User is not logged in
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const AuthScreen()),
-        );
+        return;
+      }
+      
+      // Check if the user is an admin
+      final isAdmin = await _authService.isAdmin(user.phoneNumber);
+      
+      if (mounted) {
+        if (isAdmin) {
+          // Admin user, navigate to admin dashboard
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+          );
+        } else {
+          // Check for active rides first (highest priority)
+          await _rideSessionService.checkAndNavigateToActiveRide(context, user);
+          
+          // If no active ride found, check for role-specific preferences
+          if (mounted) {
+            // Load preferences for the user's current role
+            final rolePrefs = await _rolePreferenceService.getPreferencesForRole(user.userRole);
+            final lastView = await _rolePreferenceService.getLastViewForRole(user.userRole);
+            
+            debugPrint('Loaded role preferences for ${user.userRole}: ${rolePrefs.toString()}');
+            if (lastView != null) {
+              debugPrint('Last view for ${user.userRole}: ${lastView['viewName']}');
+              // Could implement navigation to last view here if needed
+            }
+            
+            // Navigate to home screen
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
+              );
+            }
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error checking auth status: $e');
@@ -158,27 +166,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
               
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               
-              // App Tagline
-              Text(
-                'Less Traffic, More Connection',
-                style: TextStyle(
-                  fontSize: 20,
-                  color: AppColors.primaryTextColor,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              
-              const SizedBox(height: 48),
-              
-              // Loading Indicator
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-                  strokeWidth: 3,
+              // Loading indicator
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.primaryColor,
                 ),
               ),
             ],

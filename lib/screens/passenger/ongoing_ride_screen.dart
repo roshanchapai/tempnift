@@ -5,11 +5,13 @@ import 'package:nift_final/models/ride_request_model.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/services/location_service.dart';
 import 'package:nift_final/services/ride_service.dart';
+import 'package:nift_final/services/ride_session_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:nift_final/services/rating_service.dart';
 import 'package:nift_final/widgets/star_rating.dart';
+import 'package:nift_final/widgets/chat_button.dart';
 
 class PassengerOngoingRideScreen extends StatefulWidget {
   final RideRequest rideRequest;
@@ -29,6 +31,7 @@ class PassengerOngoingRideScreen extends StatefulWidget {
 
 class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen> with WidgetsBindingObserver {
   final RideService _rideService = RideService();
+  final RideSessionService _rideSessionService = RideSessionService();
   final Completer<GoogleMapController> _mapController = Completer<GoogleMapController>();
   
   StreamSubscription<RideRequest?>? _rideStatusSubscription;
@@ -55,6 +58,9 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     
+    // Save the active ride session
+    _saveRideSession();
+    
     // Defer map initialization slightly
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -63,6 +69,15 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
         _startListeningToRiderLocation();
       }
     });
+  }
+  
+  // Save the active ride session to SharedPreferences
+  Future<void> _saveRideSession() async {
+    await _rideSessionService.saveActivePassengerRide(
+      rideRequest: widget.rideRequest,
+      passenger: widget.passenger,
+      rider: widget.rider,
+    );
   }
   
   @override
@@ -217,6 +232,9 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
     if (!mounted || updatedRequest == null) return;
     
     try {
+      final bool wasCompleted = _isRideCompleted;
+      final String previousStatus = _rideStatus;
+      
       setState(() {
         _rideStatus = updatedRequest.status;
         
@@ -230,6 +248,11 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
           _isRideCompleted = true;
         }
       });
+      
+      // If ride just became completed/cancelled, clear the session
+      if (!wasCompleted && _isRideCompleted) {
+        _rideSessionService.clearActivePassengerRide();
+      }
       
       if (_isRideCompleted) {
         // Show completed dialog after a short delay
@@ -451,6 +474,9 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   
   void _showRideCompletedDialog() {
     try {
+      // Clear the active ride session
+      _rideSessionService.clearActivePassengerRide();
+      
       // Only show rating dialog for completed rides, not cancelled ones
       if (_rideStatus == 'completed') {
         _showRatingDialog();
@@ -878,6 +904,11 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
             ),
           ],
         ),
+        floatingActionButton: ChatButton(
+          rideRequest: widget.rideRequest,
+          currentUser: widget.passenger,
+          otherUser: widget.rider,
+        ),
       ),
     );
   }
@@ -947,6 +978,9 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   Future<void> _cancelRide() async {
     try {
       await _rideService.cancelRideRequest(widget.rideRequest.id);
+      
+      // Clear the active ride session when cancelled
+      await _rideSessionService.clearActivePassengerRide();
       
       if (!mounted) return;
       
