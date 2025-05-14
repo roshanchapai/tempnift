@@ -39,10 +39,13 @@ class ChatMessage {
 
   // Create ChatMessage from Firestore document
   factory ChatMessage.fromMap(Map<String, dynamic> map, String id) {
+    // Ensure we have a valid senderId, defaulting to 'system' if not present
+    final String senderId = map['senderId'] as String? ?? 'system';
+    
     return ChatMessage(
       id: id,
       rideRequestId: map['rideRequestId'] as String,
-      senderId: map['senderId'] as String,
+      senderId: senderId,
       sender: _parseSender(map['sender'] as String),
       message: map['message'] as String,
       timestamp: (map['timestamp'] as Timestamp).toDate(),
@@ -76,4 +79,12 @@ class ChatMessage {
       isRead: isRead,
     );
   }
+  
+  // Verify if this message belongs to a specific user
+  bool isSentByUser(String userId) {
+    return senderId == userId;
+  }
+  
+  // Utility method to check if message is from system
+  bool get isSystemMessage => sender == MessageSender.system || senderId == 'system';
 } 

@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:nift_final/services/rating_service.dart';
 import 'package:nift_final/widgets/star_rating.dart';
 import 'package:nift_final/widgets/chat_button.dart';
+import 'package:nift_final/screens/chat/ride_chat_screen.dart';
 
 class PassengerOngoingRideScreen extends StatefulWidget {
   final RideRequest rideRequest;
@@ -44,6 +45,7 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   String _statusMessage = 'Your rider is on the way';
   bool _isRideCompleted = false;
   bool _isMapLoaded = false;
+  bool _isCompletionDialogShown = false;
   
   LatLng? _riderLocation;
   
@@ -254,10 +256,12 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
         _rideSessionService.clearActivePassengerRide();
       }
       
-      if (_isRideCompleted) {
+      // Only show completion dialog if it hasn't been shown already
+      if (_isRideCompleted && !_isCompletionDialogShown) {
         // Show completed dialog after a short delay
         Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
+          if (mounted && !_isCompletionDialogShown) {
+            _isCompletionDialogShown = true;
             _showRideCompletedDialog();
           }
         });
@@ -474,6 +478,9 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
   
   void _showRideCompletedDialog() {
     try {
+      // Set the flag to prevent duplicate dialogs
+      _isCompletionDialogShown = true;
+      
       // Clear the active ride session
       _rideSessionService.clearActivePassengerRide();
       
@@ -693,6 +700,25 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
         appBar: AppBar(
           title: const Text('Ongoing Ride'),
           automaticallyImplyLeading: _isRideCompleted || _rideStatus == 'cancelled',
+          actions: [
+            // Add a chat button to the app bar
+            IconButton(
+              icon: const Icon(Icons.chat),
+              tooltip: 'Chat with Rider',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RideChatScreen(
+                      rideRequest: widget.rideRequest,
+                      currentUser: widget.passenger,
+                      otherUser: widget.rider,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -807,6 +833,24 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
                           onPressed: _callRider,
                           tooltip: 'Call Rider',
                         ),
+                        // Add a chat button next to the call button
+                        IconButton(
+                          icon: const Icon(Icons.message),
+                          color: AppColors.primaryColor,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => RideChatScreen(
+                                  rideRequest: widget.rideRequest,
+                                  currentUser: widget.passenger,
+                                  otherUser: widget.rider,
+                                ),
+                              ),
+                            );
+                          },
+                          tooltip: 'Message Rider',
+                        ),
                       ],
                     ),
                     
@@ -877,27 +921,52 @@ class _PassengerOngoingRideScreenState extends State<PassengerOngoingRideScreen>
                       ),
                     ),
                     
-                    // Cancel button (only show if ride is not completed or already cancelled)
-                    if (!_isRideCompleted && _rideStatus != 'cancelled') ...[
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => _showCancelConfirmationDialog(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.errorColor,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: const Text(
-                            'Cancel Ride',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                    // Button bar at the bottom with chat option
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        // Chat button taking half width
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.chat),
+                            label: const Text('Chat with Rider'),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RideChatScreen(
+                                    rideRequest: widget.rideRequest,
+                                    currentUser: widget.passenger,
+                                    otherUser: widget.rider,
+                                  ),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                        
+                        // Only add cancel button if ride is active
+                        if (!_isRideCompleted && _rideStatus != 'cancelled') ...[
+                          const SizedBox(width: 8),
+                          // Cancel button taking half width
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.cancel),
+                              label: const Text('Cancel Ride'),
+                              onPressed: () => _showCancelConfirmationDialog(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.errorColor,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),

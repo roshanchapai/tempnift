@@ -34,10 +34,22 @@ class _RideChatScreenState extends State<RideChatScreen> {
   void initState() {
     super.initState();
     
-    // Determine sender type based on user role
+    // Validate user role first to ensure correct typing
+    if (widget.currentUser.userRole != UserRole.passenger && widget.currentUser.userRole != UserRole.rider) {
+      debugPrint('WARNING: Invalid user role detected: ${widget.currentUser.userRole}. Defaulting to passenger.');
+    }
+    
+    // Determine sender type based on user role with validation
     _currentUserSender = widget.currentUser.userRole == UserRole.passenger
         ? MessageSender.passenger
         : MessageSender.rider;
+    
+    // Log debug info to help diagnose issues
+    debugPrint('Chat initialized - Current user: ${widget.currentUser.uid} (${widget.currentUser.name ?? 'Unknown'})');
+    debugPrint('Current user role: ${widget.currentUser.userRole.toString()}');
+    debugPrint('Message sender type: ${_currentUserSender.toString()}');
+    debugPrint('Other user: ${widget.otherUser.uid} (${widget.otherUser.name ?? 'Unknown'})');
+    debugPrint('Other user role: ${widget.otherUser.userRole.toString()}');
     
     // Check if ride is active (not completed or cancelled)
     _isRideActive = widget.rideRequest.status != 'completed' && 
@@ -72,6 +84,18 @@ class _RideChatScreenState extends State<RideChatScreen> {
     try {
       // Clear the input field
       _messageController.clear();
+
+      // Verify sender and recipient match roles
+      if ((widget.currentUser.userRole == UserRole.passenger && _currentUserSender != MessageSender.passenger) ||
+          (widget.currentUser.userRole == UserRole.rider && _currentUserSender != MessageSender.rider)) {
+        debugPrint('ERROR: Sender type does not match user role. Correcting before sending.');
+        _currentUserSender = widget.currentUser.userRole == UserRole.passenger
+            ? MessageSender.passenger
+            : MessageSender.rider;
+      }
+
+      // Log the details of the message being sent
+      debugPrint('Sending message as ${_currentUserSender.toString()} (${widget.currentUser.uid}) to ${widget.otherUser.uid}');
 
       // Send the message
       await _chatService.sendMessage(
@@ -164,7 +188,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
                 // Mark messages as read
                 for (final message in messages) {
                   if (!message.isRead && 
-                      message.sender != _currentUserSender && 
+                      message.senderId != widget.currentUser.uid && 
                       message.sender != MessageSender.system) {
                     _chatService.markMessageAsRead(message);
                   }
@@ -241,7 +265,8 @@ class _RideChatScreenState extends State<RideChatScreen> {
   }
 
   Widget _buildMessageItem(ChatMessage message) {
-    final isCurrentUser = message.sender == _currentUserSender;
+    // Determine if this message is from the current user by comparing sender ID AND user ID
+    final isCurrentUser = message.senderId == widget.currentUser.uid;
     final isSystem = message.sender == MessageSender.system;
     
     // Format the timestamp
@@ -273,6 +298,22 @@ class _RideChatScreenState extends State<RideChatScreen> {
       );
     }
     
+    // Determine the avatar letter for the message sender
+    // Make this more robust by checking both sender type and actual user identity
+    String avatarLetter;
+    if (message.senderId == widget.currentUser.uid) {
+      avatarLetter = widget.currentUser.userRole == UserRole.passenger ? 'P' : 'R';
+    } else if (message.senderId == widget.otherUser.uid) {
+      avatarLetter = widget.otherUser.userRole == UserRole.passenger ? 'P' : 'R';
+    } else if (message.senderId == widget.rideRequest.passengerId) {
+      avatarLetter = 'P'; // Must be passenger
+    } else if (widget.rideRequest.acceptedBy != null && message.senderId == widget.rideRequest.acceptedBy) {
+      avatarLetter = 'R'; // Must be rider
+    } else {
+      // Fallback for legacy messages without proper user ID
+      avatarLetter = message.sender == MessageSender.passenger ? 'P' : 'R';
+    }
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -286,7 +327,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
               radius: 16,
               backgroundColor: AppColors.secondaryColor,
               child: Text(
-                (message.sender == MessageSender.passenger ? 'P' : 'R'),
+                avatarLetter,
                 style: const TextStyle(color: Colors.white),
               ),
             ),
@@ -349,7 +390,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
               radius: 16,
               backgroundColor: AppColors.primaryColor.withOpacity(0.7),
               child: Text(
-                (_currentUserSender == MessageSender.passenger ? 'P' : 'R'),
+                avatarLetter,
                 style: const TextStyle(color: Colors.white),
               ),
             ),

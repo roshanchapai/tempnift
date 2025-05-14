@@ -131,6 +131,7 @@ class RideService {
           title: 'Ride Accepted!',
           body: 'Your ride has been accepted by $riderName',
           payload: 'ride_accepted:$requestId',
+          passengerId: rideRequest.passengerId,
         );
         
         // Send a system message to the chat
@@ -189,6 +190,7 @@ class RideService {
           title: 'Ride Completed',
           body: 'Your ride has been completed. Total fare: Rs.${finalPrice?.toInt() ?? rideRequest.offeredPrice.toInt()}',
           payload: 'ride_completed:$requestId',
+          passengerId: rideRequest.passengerId,
         );
         
         // Notify the rider that the ride is completed
@@ -196,6 +198,7 @@ class RideService {
           title: 'Ride Completed',
           body: 'Ride with ${passenger.name ?? 'passenger'} completed. Earned: Rs.${finalPrice?.toInt() ?? rideRequest.offeredPrice.toInt()}',
           payload: 'ride_completed:$requestId',
+          riderId: rideRequest.acceptedBy,
         );
         
         // Send a system message to the chat
@@ -239,6 +242,7 @@ class RideService {
           title: 'Ride Cancelled',
           body: 'Ride with ${passenger.name ?? 'passenger'} has been cancelled.',
           payload: 'ride_cancelled:$requestId',
+          riderId: ride.acceptedBy,
         );
         
         // Send a system message to the chat

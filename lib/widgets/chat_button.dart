@@ -32,42 +32,44 @@ class _ChatButtonState extends State<ChatButton> {
   void initState() {
     super.initState();
     _setupUnreadCounter();
+    
+    // Debug the button visibility
+    debugPrint('ChatButton initialized for ${widget.currentUser.userRole} - Ride status: ${widget.rideRequest.status}');
   }
 
   void _setupUnreadCounter() {
-    // Only setup the counter if the ride is active
-    if (widget.rideRequest.status != 'completed' && widget.rideRequest.status != 'cancelled') {
-      final currentUserSender = widget.currentUser.userRole == UserRole.passenger
-          ? MessageSender.passenger
-          : MessageSender.rider;
-      
-      // Listen to unread message count
-      _chatService
-          .getUnreadMessageCount(widget.rideRequest.id, currentUserSender)
-          .listen((count) {
-        if (mounted) {
-          setState(() {
-            _unreadCount = count;
-            _isLoading = false;
-          });
-        }
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    // Always setup the counter regardless of ride status
+    final currentUserSender = widget.currentUser.userRole == UserRole.passenger
+        ? MessageSender.passenger
+        : MessageSender.rider;
+    
+    // Listen to unread message count
+    _chatService
+        .getUnreadMessageCount(widget.rideRequest.id, currentUserSender)
+        .listen((count) {
+      if (mounted) {
+        setState(() {
+          _unreadCount = count;
+          _isLoading = false;
+        });
+      }
+    }, onError: (e) {
+      debugPrint('Error getting unread count: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Don't show chat button for completed or cancelled rides
-    if (widget.rideRequest.status == 'completed' || widget.rideRequest.status == 'cancelled') {
-      return const SizedBox.shrink();
-    }
+    final bool isRideActive = widget.rideRequest.status != 'completed' && widget.rideRequest.status != 'cancelled';
     
+    // Always show chat button but with different appearance for inactive rides
     return _isLoading
-        ? const SizedBox(width: 48, height: 48) // Placeholder while loading
+        ? const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator())) 
         : Stack(
             children: [
               FloatingActionButton(
@@ -84,7 +86,10 @@ class _ChatButtonState extends State<ChatButton> {
                     ),
                   );
                 },
-                backgroundColor: AppColors.primaryColor,
+                backgroundColor: isRideActive 
+                    ? AppColors.primaryColor  
+                    : Colors.grey, // Grey for inactive rides
+                tooltip: "Chat with ${widget.otherUser.name ?? (widget.currentUser.userRole == UserRole.passenger ? 'Rider' : 'Passenger')}",
                 child: const Icon(Icons.chat),
               ),
               if (_unreadCount > 0)

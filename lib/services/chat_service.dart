@@ -29,11 +29,65 @@ class ChatService {
     required UserModel recipient,
   }) async {
     try {
-      // Create message data
+      // Double-check sender type against actual user role to catch any errors
+      // This fixes the issue where a rider might appear to be sending messages as a passenger
+      MessageSender correctedSender;
+      UserRole recipientRole;
+      
+      // Get the ride request to verify roles
+      final rideRequest = await getRideRequest(rideRequestId);
+      if (rideRequest == null) {
+        throw Exception("Cannot send message: Ride request not found");
+      }
+      
+      // Verify if the sender is actually the passenger or rider based on the ride request
+      bool isSenderPassenger = senderId == rideRequest.passengerId;
+      bool isSenderRider = rideRequest.acceptedBy != null && senderId == rideRequest.acceptedBy;
+      
+      // Set the correct sender type based on actual role in the ride
+      if (isSenderPassenger) {
+        correctedSender = MessageSender.passenger;
+        recipientRole = UserRole.rider;
+        
+        // Log the correction if there was a mismatch
+        if (sender != MessageSender.passenger) {
+          debugPrint('Correcting sender type from ${sender.toString()} to passenger');
+        }
+      } else if (isSenderRider) {
+        correctedSender = MessageSender.rider;
+        recipientRole = UserRole.passenger;
+        
+        // Log the correction if there was a mismatch
+        if (sender != MessageSender.rider) {
+          debugPrint('Correcting sender type from ${sender.toString()} to rider');
+        }
+      } else {
+        // If neither passenger nor rider, this is an error
+        throw Exception('Sender ID does not match either passenger or rider in this ride');
+      }
+      
+      // Ensure recipient is the correct user
+      String recipientId;
+      if (correctedSender == MessageSender.passenger) {
+        // If sender is passenger, recipient should be the rider
+        recipientId = rideRequest.acceptedBy!;
+      } else {
+        // If sender is rider, recipient should be the passenger
+        recipientId = rideRequest.passengerId;
+      }
+      
+      // Log detailed message information for debugging
+      debugPrint('=== SENDING MESSAGE ===');
+      debugPrint('Ride: $rideRequestId');
+      debugPrint('Sender ID: $senderId as ${correctedSender.toString()}');
+      debugPrint('Recipient ID: $recipientId as ${recipientRole.toString()}');
+      debugPrint('Message: $message');
+      
+      // Create message data with validated fields
       final messageData = {
         'rideRequestId': rideRequestId,
         'senderId': senderId,
-        'sender': sender.toString().split('.').last,
+        'sender': correctedSender.toString().split('.').last,
         'message': message,
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -42,15 +96,33 @@ class ChatService {
       // Add to Firestore
       final docRef = await _messagesCollection.add(messageData);
       
-      // Send notification to recipient
-      final senderRoleAsString = sender == MessageSender.passenger ? 'Passenger' : 'Rider';
-      final recipientRole = sender == MessageSender.passenger ? UserRole.rider : UserRole.passenger;
+      // Send notification to the correct recipient
+      final senderRoleAsString = correctedSender == MessageSender.passenger ? 'Passenger' : 'Rider';
       
+      // Get the actual recipient user
+      UserModel actualRecipient;
+      try {
+        final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+        final docSnapshot = await _firestore.collection('users').doc(recipientId).get();
+        
+        if (docSnapshot.exists) {
+          actualRecipient = UserModel.fromMap(docSnapshot.data()!);
+        } else {
+          throw Exception('Recipient user not found');
+        }
+      } catch (e) {
+        debugPrint('Error fetching recipient user: $e');
+        // Fallback to the passed recipient if we can't fetch the actual one
+        actualRecipient = recipient;
+      }
+      
+      // Send notification
       await _notificationService.showMessageNotification(
         userRole: recipientRole,
         title: 'New Message from $senderRoleAsString',
         body: message,
         payload: 'chat:$rideRequestId',
+        userId: recipientId, // Use the verified recipient ID
       );
       
       // Create and return ChatMessage object
@@ -58,7 +130,7 @@ class ChatService {
         id: docRef.id,
         rideRequestId: rideRequestId,
         senderId: senderId,
-        sender: sender,
+        sender: correctedSender, // Use corrected sender type
         message: message,
         timestamp: DateTime.now(),
         isRead: false,
@@ -66,6 +138,24 @@ class ChatService {
     } catch (e) {
       debugPrint('Error sending message: $e');
       throw Exception('Failed to send message: $e');
+    }
+  }
+  
+  // Helper method to get a ride request by ID
+  Future<RideRequest?> getRideRequest(String rideRequestId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('rideRequests')
+          .doc(rideRequestId)
+          .get();
+      
+      if (doc.exists) {
+        return RideRequest.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error getting ride request: $e');
+      return null;
     }
   }
   
