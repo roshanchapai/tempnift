@@ -6,6 +6,9 @@ import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nift_final/utils/app_styles.dart';
+import 'package:nift_final/utils/app_colors.dart';
+import 'package:nift_final/services/cloudinary_service.dart';
 
 class RiderRegistrationScreen extends StatefulWidget {
   final UserModel user;
@@ -48,12 +51,14 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
     super.dispose();
   }
   
-  // Pick image from camera or gallery
+  // Pick image from gallery or camera
   Future<File?> _pickImage(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
         source: source,
-        imageQuality: 70,
+        imageQuality: 80,
+        maxWidth: 800,
       );
       
       if (pickedFile != null) {
@@ -61,9 +66,7 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
       }
       return null;
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to pick image: $e';
-      });
+      debugPrint('Error picking image: $e');
       return null;
     }
   }
@@ -104,37 +107,21 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
     return null;
   }
   
-  // Upload image to Firebase Storage
+  // Upload image to Cloudinary
   Future<String?> _uploadImage(File image, String folder) async {
     try {
-      final storageRef = FirebaseStorage.instance.ref();
-      final imageRef = storageRef.child('rider_applications/${widget.user.uid}/$folder/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      
-      // Add metadata
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-        customMetadata: {'userId': widget.user.uid},
+      final cloudinary = CloudinaryService();
+      final downloadUrl = await cloudinary.uploadImage(
+        imageFile: image,
+        folder: 'rider_applications/${widget.user.uid}/$folder',
+        publicId: '${DateTime.now().millisecondsSinceEpoch}',
       );
       
-      // Create the upload task
-      final uploadTask = imageRef.putFile(image, metadata);
-      
-      // Monitor the upload task
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        debugPrint('Upload progress: ${(progress * 100).toStringAsFixed(2)}%');
-      });
-      
-      // Wait for upload to complete
-      final snapshot = await uploadTask;
-      
-      if (snapshot.state == TaskState.success) {
-        // Get download URL
-        final downloadUrl = await snapshot.ref.getDownloadURL();
+      if (downloadUrl != null) {
         debugPrint('Image uploaded successfully. URL: $downloadUrl');
         return downloadUrl;
       } else {
-        throw Exception('Upload completed but state is not success: ${snapshot.state}');
+        throw Exception('Upload failed to Cloudinary');
       }
     } catch (e) {
       debugPrint('Error uploading image: $e');

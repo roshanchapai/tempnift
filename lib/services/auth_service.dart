@@ -4,13 +4,13 @@ import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/utils/retry_helper.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:nift_final/services/cloudinary_service.dart';
 import 'dart:io';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
   
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
@@ -238,33 +238,23 @@ class AuthService {
     required File imageFile,
   }) async {
     try {
-      // Create a reference to the location where we'll store the image
-      final String fileName = 'profile_$uid.jpg';
-      final Reference storageRef = _storage.ref().child('profile_images/$fileName');
-      
-      // Upload the file
-      final UploadTask uploadTask = storageRef.putFile(
-        imageFile,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {'userId': uid},
-        ),
+      // Upload image to Cloudinary
+      final String? downloadUrl = await _cloudinaryService.uploadImage(
+        imageFile: imageFile,
+        folder: 'profile_images',
+        publicId: 'profile_$uid',
       );
       
-      // Wait for the upload to complete
-      final TaskSnapshot snapshot = await uploadTask;
-      
-      // Get the download URL
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-      
-      // Update the user document with the image URL
-      await RetryHelper.retry(
-        operation: () async {
-          await _firestore.collection('users').doc(uid).update({
-            'profileImageUrl': downloadUrl,
-          });
-        },
-      );
+      if (downloadUrl != null) {
+        // Update the user document with the image URL
+        await RetryHelper.retry(
+          operation: () async {
+            await _firestore.collection('users').doc(uid).update({
+              'profileImageUrl': downloadUrl,
+            });
+          },
+        );
+      }
       
       return downloadUrl;
     } catch (e) {
