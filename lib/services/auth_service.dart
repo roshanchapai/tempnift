@@ -4,8 +4,8 @@ import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:nift_final/utils/retry_helper.dart';
 import 'package:flutter/foundation.dart';
-import 'package:nift_final/services/cloudinary_service.dart';
 import 'dart:io';
+import 'package:nift_final/services/cloudinary_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -238,11 +238,10 @@ class AuthService {
     required File imageFile,
   }) async {
     try {
-      // Upload image to Cloudinary
-      final String? downloadUrl = await _cloudinaryService.uploadImage(
+      // Use CloudinaryService instead of Firebase Storage
+      final String? downloadUrl = await _cloudinaryService.uploadProfileImage(
+        uid: uid,
         imageFile: imageFile,
-        folder: 'profile_images',
-        publicId: 'profile_$uid',
       );
       
       if (downloadUrl != null) {

@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+// import 'package:firebase_storage/firebase_storage.dart'; // Remove Firebase Storage
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nift_final/utils/app_styles.dart';
-import 'package:nift_final/utils/app_colors.dart';
-import 'package:nift_final/services/cloudinary_service.dart';
+import 'package:nift_final/services/cloudinary_service.dart'; // Import CloudinaryService
 
 class RiderRegistrationScreen extends StatefulWidget {
   final UserModel user;
@@ -20,6 +19,7 @@ class RiderRegistrationScreen extends StatefulWidget {
 
 class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
   final AuthService _authService = AuthService();
+  final CloudinaryService _cloudinaryService = CloudinaryService(); // Add CloudinaryService
   final _formKey = GlobalKey<FormState>();
   
   // Form fields
@@ -50,14 +50,12 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
     super.dispose();
   }
   
-  // Pick image from gallery or camera
+  // Pick image from camera or gallery
   Future<File?> _pickImage(ImageSource source) async {
     try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
+      final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 80,
-        maxWidth: 800,
+        imageQuality: 70,
       );
       
       if (pickedFile != null) {
@@ -65,7 +63,9 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
       }
       return null;
     } catch (e) {
-      debugPrint('Error picking image: $e');
+      setState(() {
+        _errorMessage = 'Failed to pick image: $e';
+      });
       return null;
     }
   }
@@ -106,21 +106,28 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
     return null;
   }
   
-  // Upload image to Cloudinary
-  Future<String?> _uploadImage(File image, String folder) async {
+  // Upload image using Cloudinary instead of Firebase Storage
+  Future<String?> _uploadImage(File image, String imageType) async {
     try {
-      final cloudinary = CloudinaryService();
-      final downloadUrl = await cloudinary.uploadImage(
+      // Show upload progress in the UI
+      final progressCallback = (double progress) {
+        debugPrint('Upload progress: ${(progress * 100).toStringAsFixed(2)}%');
+        // You could update a progress indicator here if needed
+      };
+      
+      // Use CloudinaryService to upload the image
+      final downloadUrl = await _cloudinaryService.uploadRiderApplicationImage(
+        uid: widget.user.uid,
         imageFile: image,
-        folder: 'rider_applications/${widget.user.uid}/$folder',
-        publicId: '${DateTime.now().millisecondsSinceEpoch}',
+        imageType: imageType,
+        onProgress: progressCallback,
       );
       
       if (downloadUrl != null) {
         debugPrint('Image uploaded successfully. URL: $downloadUrl');
         return downloadUrl;
       } else {
-        throw Exception('Upload failed to Cloudinary');
+        throw Exception('Upload failed');
       }
     } catch (e) {
       debugPrint('Error uploading image: $e');

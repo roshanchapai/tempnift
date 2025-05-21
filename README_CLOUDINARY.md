@@ -1,76 +1,64 @@
-# Cloudinary Integration for NIFT
+# Switching from Firebase Storage to Cloudinary
 
-This document provides instructions for setting up Cloudinary image storage for the NIFT ride-sharing application.
+This project has been updated to use Cloudinary instead of Firebase Storage for storing images. Cloudinary offers a free tier that should be suitable for development and small production apps.
 
 ## Why Cloudinary?
 
-We've migrated from Firebase Storage to Cloudinary for image uploads because:
-
-1. Cloudinary offers a generous free tier (10GB storage, 25GB bandwidth/month)
-2. Better image optimization and transformation capabilities
-3. No need for authentication tokens - works with upload presets
+- Free tier with generous limits
+- Better image optimization
+- Built-in transformations for images (resizing, cropping, filters, etc.)
+- Global CDN for faster delivery
+- No need to manage storage rules
 
 ## Setup Instructions
 
-### 1. Create a Cloudinary Account
+1. Create a Cloudinary account at [cloudinary.com](https://cloudinary.com) (free tier is available)
 
-1. Go to [Cloudinary.com](https://cloudinary.com/) and sign up for a free account
-2. After signing up, you'll be taken to your dashboard
+2. Get your **Cloud Name** from the Cloudinary dashboard
 
-### 2. Get Your Credentials
-
-From your Cloudinary dashboard:
-
-1. Note your **Cloud Name** (shown prominently on the dashboard)
-2. Create an unsigned upload preset:
+3. Create an upload preset:
    - Go to Settings > Upload
-   - Scroll to "Upload presets"
-   - Click "Add upload preset"
+   - Scroll down to "Upload presets" and click "Add upload preset"
    - Set "Signing Mode" to "Unsigned"
-   - Name your preset (e.g., "nift_preset")
+   - Choose any other settings you want (folder, transformations, etc.)
    - Save the preset
    - Note the preset name
 
-### 3. Configure the App
-
-1. Open `lib/utils/config.dart`
-2. Replace the placeholder values:
+4. Update the configuration in the app:
+   - Open `lib/utils/config.dart`
+   - Replace `your_cloud_name` with your actual cloud name
+   - Replace `your_upload_preset` with your upload preset name
 
 ```dart
 class AppConfig {
-  // Cloudinary configuration
-  static const String cloudinaryCloudName = "YOUR_CLOUD_NAME";
-  static const String cloudinaryUploadPreset = "YOUR_UPLOAD_PRESET";
-  
-  // Other app configurations can be added here
+  // Cloudinary Configuration
+  static const String cloudinaryCloudName = 'your_cloud_name';
+  static const String cloudinaryUploadPreset = 'your_upload_preset';
 }
 ```
 
-Replace:
-- `YOUR_CLOUD_NAME` with your actual Cloudinary cloud name
-- `YOUR_UPLOAD_PRESET` with the unsigned upload preset you created
+5. Run the app - all image uploads should now go to Cloudinary instead of Firebase Storage
 
-### 4. Test the Integration
+## Usage
 
-1. Run the app
-2. Try uploading a profile image or registering as a rider
-3. Check your Cloudinary Media Library to verify images are being uploaded
+The app now uses the `CloudinaryService` for all image uploads. If you need to add new image upload functionality, use this service instead of Firebase Storage.
 
-## Implementation Details
+Example:
 
-The app uses the `cloudinary_public` package to handle uploads:
+```dart
+final cloudinaryService = CloudinaryService();
+final downloadUrl = await cloudinaryService.uploadImage(
+  imageFile: imageFile,
+  folder: 'custom_folder', // optional
+  onProgress: (progress) {
+    // Handle progress updates
+    print('Upload progress: ${(progress * 100).toStringAsFixed(2)}%');
+  },
+);
+```
 
-- `CloudinaryService` in `lib/services/cloudinary_service.dart` handles all uploads
-- User profile images are stored in the `profile_images` folder
-- Rider application images are stored in `rider_applications/[user_id]/[type]` folders
+## Important Notes
 
-## Troubleshooting
-
-If you encounter issues with uploads:
-
-1. Verify your Cloudinary credentials are correct
-2. Check that your upload preset is set to "Unsigned"
-3. Verify network connectivity
-4. Check the Flutter debug console for error messages
-
-For any other issues, refer to the [Cloudinary documentation](https://cloudinary.com/documentation). 
+- This implementation uses the `cloudinary_public` package, which allows for client-side uploads without exposing your API key or secret
+- The free tier of Cloudinary has limits, check their pricing page for details
+- You may want to implement server-side validation and authorization for production apps 
