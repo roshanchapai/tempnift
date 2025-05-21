@@ -1,6 +1,6 @@
 # Nift - Ride-Hailing Application
 
-<img src="assets/images/logo/nift_logo.png" alt="Nift Logo" width="150"/>
+<img src="assets/images/logo.png" alt="Nift Logo" width="150"/>
 
 ## Project Overview
 
