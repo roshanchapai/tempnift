@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nift_final/models/user_model.dart';
 import 'package:nift_final/services/auth_service.dart';
 import 'package:nift_final/utils/constants.dart';
