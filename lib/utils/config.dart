@@ -1,7 +1,7 @@
 class AppConfig {
   // Cloudinary configuration
-  static const String cloudinaryCloudName = "YOUR_CLOUD_NAME";
-  static const String cloudinaryUploadPreset = "YOUR_UPLOAD_PRESET";
+  static const String cloudinaryCloudName = "dojxxkb49";
+  static const String cloudinaryUploadPreset = "nift2329240";
   
   // Other app configurations can be added here
 } 
